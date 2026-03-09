@@ -140,6 +140,18 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
     end
   end
 
+  @doc """
+  Mutation: refreshToken(refreshToken: String!)
+  """
+  def refresh_token(_parent, %{refresh_token: token}, _resolution) do
+    case Auth.refresh_token(token) do
+      {:ok, user, new_access_token, new_refresh_token} ->
+        {:ok, %{user: user, token: new_access_token, refresh_token: new_refresh_token, message: "Token refreshed"}}
+      {:error, message} ->
+        {:error, message}
+    end
+  end
+
   # === PRIVATE HELPERS ===
 
   defp generate_otp_code do

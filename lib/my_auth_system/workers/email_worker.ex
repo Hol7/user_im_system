@@ -4,6 +4,8 @@ defmodule MyAuthSystem.Workers.EmailWorker do
   """
   use Oban.Worker, queue: :emails, max_attempts: 3
 
+  require Logger
+
   @impl true
   def perform(%Oban.Job{args: %{"type" => "otp", "email" => email, "name" => name, "otp" => otp}}) do
     case MyAuthSystem.Notifications.Brevo.send_otp_email(email, name, otp) do
@@ -12,7 +14,7 @@ defmodule MyAuthSystem.Workers.EmailWorker do
     end
   end
 
-  def perform(%Oban.Job{args: %{"type" => "welcome", "email" => email, "name" => name}}) do
+  def perform(%Oban.Job{args: %{"type" => "welcome", "email" => _email, "name" => _name}}) do
     # Implémenter email de bienvenue si besoin
     :ok
   end

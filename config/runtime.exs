@@ -60,21 +60,17 @@ if config_env() != :test do
   # === ENDPOINT (Runtime overrides) ===
   config :my_auth_system, MyAuthSystemWeb.Endpoint,
     http: [
-      port: String.to_integer(System.get_env("PORT") || "4000"),
-      transport_options: [socket_opts: [:inet6]]
+      port: String.to_integer(System.get_env("PORT") || "4000")
     ],
     secret_key_base:
       System.get_env("SECRET_KEY_BASE") ||
-        raise(
-          """
-          environment variable SECRET_KEY_BASE is missing.
-          You can generate one by running: mix phoenix.gen.secret
-          """,
-          # Production-only settings
-          check_origin: if(config_env() == :prod, do: ["//myauthsystem.com"], else: false),
-          force_ssl:
-            [hsts: true] |> then(fn opts -> if config_env() == :prod, do: opts, else: [] end)
-        )
+        raise("""
+        environment variable SECRET_KEY_BASE is missing.
+        You can generate one by running: mix phx.gen.secret
+        """),
+    check_origin: if(config_env() == :prod, do: ["//myauthsystem.com"], else: false),
+    force_ssl:
+      [hsts: true] |> then(fn opts -> if config_env() == :prod, do: opts, else: [] end)
 
   # === UPLOAD PATH ===
   config :my_auth_system,

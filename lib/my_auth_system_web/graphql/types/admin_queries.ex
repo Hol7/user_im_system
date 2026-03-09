@@ -2,18 +2,20 @@ defmodule MyAuthSystemWeb.GraphQL.Types.AdminQueries do
   use Absinthe.Schema.Notation
   use Absinthe.Relay.Schema.Notation, :modern
 
+  import_types Absinthe.Type.Custom
+
   object :admin_queries do
     # List users with filtering/pagination
-    connection node_type: :user do
-      field :admin_users, node_type: :user do
-        arg(:status, :user_status)
-        arg(:role, :user_role)
-        arg(:search, :string)
-        arg(:sort_by, :user_sort_field, default_value: :inserted_at)
-        arg(:sort_order, :sort_order, default_value: :desc)
-        middleware(MyAuthSystemWeb.GraphQL.Middleware.RequireRole, [:admin, :super_admin])
-        resolve(&MyAuthSystemWeb.GraphQL.Resolvers.AdminResolver.list_users/3)
-      end
+    field :admin_users, list_of(:user) do
+      arg(:status, :user_status)
+      arg(:role, :user_role)
+      arg(:search, :string)
+      arg(:sort_by, :user_sort_field, default_value: :inserted_at)
+      arg(:sort_order, :sort_order, default_value: :desc)
+      arg(:first, :integer)
+      arg(:after, :string)
+      middleware(MyAuthSystemWeb.GraphQL.Middleware.RequireRole, [:admin, :super_admin])
+      resolve(&MyAuthSystemWeb.GraphQL.Resolvers.AdminResolver.list_users/3)
     end
 
     # Get single user by ID
@@ -54,8 +56,8 @@ defmodule MyAuthSystemWeb.GraphQL.Types.AdminQueries do
     field :id, non_null(:id)
     field :user_id, :id
     field :action, non_null(:string)
-    field :metadata, :map
+    field :metadata, :string
     field :ip_address, :string
-    field :inserted_at, non_null(:datetime)
+    field :inserted_at, non_null(:naive_datetime)
   end
 end

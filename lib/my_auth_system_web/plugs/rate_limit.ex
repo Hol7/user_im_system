@@ -42,8 +42,8 @@ defmodule MyAuthSystemWeb.Plugs.RateLimit do
     end
   end
 
-  # Extraire l'IP (gère les proxies)
-  defp get_ip(conn) do
+  # === HELPER: Extraire l'IP du client ===
+  def get_ip(conn) do
     conn
     |> Plug.Conn.get_req_header("x-forwarded-for")
     |> List.first()

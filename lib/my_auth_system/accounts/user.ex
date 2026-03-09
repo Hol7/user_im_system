@@ -14,6 +14,8 @@ defmodule MyAuthSystem.Accounts.User do
       default: :pending_verification
 
     field :last_login_at, :utc_datetime
+    field :email_verified_at, :utc_datetime
+    field :deleted_at, :utc_datetime
     field :password, :string, virtual: true
     field :password_confirmation, :string, virtual: true
 
@@ -35,6 +37,37 @@ defmodule MyAuthSystem.Accounts.User do
     |> unique_constraint(:email)
     |> put_password_hash()
   end
+
+  # Inside lib/my_auth_system/accounts/user.ex
+
+  @doc """
+  Changeset for Admin updates.
+  Allows admins to modify sensitive fields like role and status that normal users cannot.
+  """
+  def admin_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:email, :role, :status, :password, :password_confirmation])
+    |> validate_required([:email])
+    |> unique_constraint(:email)
+    |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/, message: "must have the @ sign and no spaces")
+    |> validate_inclusion(:role, [:user, :admin, :super_admin])
+    |> validate_inclusion(:status, [
+      :active,
+      :pending_verification,
+      :suspended,
+      :deletion_requested,
+      :deleted
+    ])
+    |> maybe_hash_password()
+  end
+
+  defp maybe_hash_password(
+         %Ecto.Changeset{valid?: true, changes: %{password: password}} = changeset
+       ) do
+    put_change(changeset, :password_hash, Argon2.hash_pwd_salt(password))
+  end
+
+  defp maybe_hash_password(changeset), do: changeset
 
   defp put_password_hash(
          %Ecto.Changeset{valid?: true, changes: %{password: password}} = changeset

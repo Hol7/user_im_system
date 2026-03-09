@@ -23,6 +23,10 @@ erl_crash.dump
 *.env
 /.env/
 
+.RUN_APP.md
+/.RUN_APP.md/
+*.RUN_APP.md
+
 # Temporary files, for example, from tests.
 /tmp/
 

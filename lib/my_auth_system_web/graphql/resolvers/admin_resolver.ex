@@ -2,7 +2,7 @@
 defmodule MyAuthSystemWeb.GraphQL.Resolvers.AdminResolver do
   alias MyAuthSystem.Accounts
   alias MyAuthSystem.Repo
-  alias MyAuthSystem.Accounts.{User, Profile}
+  alias MyAuthSystem.Accounts.User
   import Ecto.Query
 
 
@@ -107,7 +107,7 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AdminResolver do
 
   def process_deletion(_parent, %{id: id, action: :reject}, %{context: %{current_user: admin}}) do
     with true <- admin.role in [:admin, :super_admin] || {:error, :forbidden},
-         {:ok, user} <- MyAuthSystem.Accounts.restore_user(id) do
+         {:ok, _user} <- MyAuthSystem.Accounts.restore_user(id) do
       {:ok, %{message: "Deletion request rejected, account restored"}}
     end
   end
@@ -135,10 +135,9 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AdminResolver do
 
   defp maybe_search(query, nil), do: query
   defp maybe_search(query, term) do
+    search_term = "%#{String.downcase(term)}%"
     where(query, [u],
-      fragment("LOWER(?)", u.email) like ^"%#{String.downcase(term)}%" or
-      fragment("LOWER(?)", u.first_name) like ^"%#{String.downcase(term)}%" or
-      fragment("LOWER(?)", u.last_name) like ^"%#{String.downcase(term)}%"
+      ilike(u.email, ^search_term)
     )
   end
 

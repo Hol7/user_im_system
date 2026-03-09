@@ -6,7 +6,6 @@ defmodule MyAuthSystem.Auth do
   alias MyAuthSystem.Repo
   alias MyAuthSystem.Accounts.User
   alias MyAuthSystem.Auth.{Otp, GuardianToken, RefreshToken}
-  alias MyAuthSystem.Notifications.Brevo
   alias MyAuthSystem.Workers.EmailWorker
   import Ecto.Query
 
@@ -60,20 +59,6 @@ defmodule MyAuthSystem.Auth do
       {:error, :invalid} -> {:error, "Invalid refresh token"}
       error -> error
     end
-  end
-
-  # ... fonctions existantes (authenticate/2, generate_otp/2, etc.) ...
-
-  @doc """
-  Demande une réinitialisation de mot de passe.
-  Génère un OTP et l'envoie par email.
-  """
-
-  defp generate_temp_otp_code do
-    :crypto.strong_rand_bytes(3)
-    |> :binary.bin_to_list()
-    |> Enum.map(&rem(&1, 10))
-    |> Enum.join()
   end
 
   @doc """

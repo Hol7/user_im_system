@@ -1,30 +1,20 @@
 defmodule MyAuthSystemWeb.Router do
   use MyAuthSystemWeb, :router
 
-  import Absinthe.Plug, only: [init_opts: 2]
-  # pipeline :api do
-  #   plug :accepts, ["json"]
-  #   plug :fetch_session
-  #   plug Guardian.Plug.VerifyHeader
-  #   plug Guardian.Plug.LoadResource
-  # end
-
-  # scope "/api", MyAuthSystemWeb do
-  #   pipe_through :api
-  #   forward "/graphql", Absinthe.Plug, schema: MyAuthSystemWeb.GraphQL.Schema
-  #   #
-  #   post "/upload", UploadController, :upload
-  # end
+  pipeline :browser do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_flash
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+  end
 
   pipeline :api do
     plug :accepts, ["json"]
     plug :fetch_session
 
-    # === RATE LIMITING POUR LES ROUTES AUTH ===
     plug MyAuthSystemWeb.Plugs.RateLimit,
-      # 5 requêtes max
       limit: 5,
-      # par minute
       window_ms: 60_000,
       key_extractor: &MyAuthSystemWeb.Plugs.RateLimit.get_ip/1
 
@@ -100,23 +90,16 @@ defmodule MyAuthSystemWeb.Router do
     post "/upload/avatar", UploadController, :upload_avatar
   end
 
-  # Servir les uploads en mode dev
-  if code_reloading? do
-    plug Plug.Static,
-      at: "/uploads",
-      from: :my_auth_system,
-      gzip: false,
-      only: ~w(uploads)
-  end
 
   # === PUBLIC AUTH ROUTES (REST fallback) ===
-  scope "/api", MyAuthSystemWeb do
-    post "/auth/register", AuthController, :register
-    post "/auth/login", AuthController, :login_request
-    post "/auth/verify-otp", AuthController, :verify_otp
-    post "/auth/refresh", AuthController, :refresh_token
-    get "/auth/validate-email", AuthController, :validate_email
-  end
+  # Commented out - using GraphQL API instead
+  # scope "/api", MyAuthSystemWeb do
+  #   post "/auth/register", AuthController, :register
+  #   post "/auth/login", AuthController, :login_request
+  #   post "/auth/verify-otp", AuthController, :verify_otp
+  #   post "/auth/refresh", AuthController, :refresh_token
+  #   get "/auth/validate-email", AuthController, :validate_email
+  # end
 
   #  # === PUBLIC AUTH ROUTES ===
   # scope "/api", MyAuthSystemWeb do

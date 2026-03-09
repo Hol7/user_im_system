@@ -1,5 +1,4 @@
 defmodule MyAuthSystemWeb.GraphQL.Resolvers.UserResolver do
-  alias MyAuthSystem.Repo
   alias MyAuthSystem.Accounts
 
   def get_me(_parent, _args, %{context: %{current_user: user}}) when not is_nil(user) do
@@ -19,6 +18,17 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.UserResolver do
   end
 
   def update_profile(_parent, _args, _resolution) do
+    {:error, "Unauthorized"}
+  end
+
+  def request_deletion(_parent, _args, %{context: %{current_user: user}}) when not is_nil(user) do
+    case Accounts.request_account_deletion(user) do
+      {:ok, _user} -> {:ok, %{message: "Account deletion requested. You have 30 days to cancel."}}
+      {:error, changeset} -> {:error, format_errors(changeset)}
+    end
+  end
+
+  def request_deletion(_parent, _args, _resolution) do
     {:error, "Unauthorized"}
   end
 

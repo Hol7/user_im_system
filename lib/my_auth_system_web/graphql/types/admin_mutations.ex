@@ -53,19 +53,6 @@ defmodule MyAuthSystemWeb.GraphQL.Types.AdminMutations do
     field :avatar_path, :string
   end
 
-  enum :user_role do
-    value(:user)
-    value(:admin)
-    value(:super_admin)
-  end
-
-  enum :user_status do
-    value(:active)
-    value(:pending_verification)
-    value(:suspended)
-    value(:deletion_requested)
-  end
-
   enum :deletion_action do
     value(:approve)
     value(:reject)

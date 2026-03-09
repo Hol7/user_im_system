@@ -4,6 +4,7 @@ defmodule MyAuthSystem.Application do
   Starts all children processes including Repo, Endpoint, Oban, Finch, etc.
   """
   use Application
+  require Logger
 
   @impl true
   def start(_type, _args) do
@@ -33,9 +34,6 @@ defmodule MyAuthSystem.Application do
 
       # Queue de jobs asynchrones (emails, logs, cleanup)
       {Oban, Application.fetch_env!(:my_auth_system, Oban)},
-
-      # Guardian pour la gestion des tokens JWT
-      {Guardian, Application.fetch_env!(:my_auth_system, Guardian)},
 
       # Point d'entrée HTTP/HTTPS de l'application
       MyAuthSystemWeb.Endpoint

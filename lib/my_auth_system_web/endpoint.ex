@@ -22,7 +22,7 @@ defmodule MyAuthSystemWeb.Endpoint do
     origins: ["*"],
     allow_credentials: true,
     allow_headers: :all,
-    allow_methods: [:get, :post, :put, :patch, :delete, :options]
+    allow_methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
   # Serve at "/" the static files from "priv/static" directory.
   #
