@@ -76,33 +76,55 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
   end
 
   @doc """
-  Mutation: verifyOtp(otpId: ID!, code: String!)
+  Mutation: verifyOtp(code: String!)
+  Verifies OTP using only the 6-digit code from email.
+  Finds the most recent unused OTP that matches the code.
   """
-  def verify_otp(_parent, %{otp_id: otp_id, code: code}, _resolution) do
+  def verify_otp(_parent, %{code: code}, _resolution) do
+    import Ecto.Query
+
     try do
-      with {:ok, otp} <- Repo.get(Otp, otp_id) |> Repo.preload(:user) |> validate_otp(),
-           {:ok, :valid} <- Otp.verify_otp(otp, code),
-           {:ok, tokens} <- Auth.generate_tokens(otp.user) do
-        # Mark OTP as used
-        otp
-        |> Ecto.Changeset.change(used: true)
-        |> Repo.update()
+      # Find all unused, non-expired OTPs
+      query =
+        from o in Otp,
+          where: o.used == false and o.expires_at > ^DateTime.utc_now(),
+          order_by: [desc: o.inserted_at],
+          preload: :user
 
-        # Log the action
-        MyAuthSystem.Audit.Log.log_async(
-          otp.user_id,
-          "LOGIN_SUCCESS",
-          %{method: "otp"},
-          nil
-        )
+      # Get all matching OTPs and verify code against each
+      otps = Repo.all(query)
 
-        {:ok, %{user: otp.user, token: tokens.access_token, refresh_token: tokens.refresh_token}}
-      else
-        {:error, _reason} -> {:error, "Invalid or expired OTP"}
+      matching_otp =
+        Enum.find(otps, fn otp ->
+          Argon2.verify_pass(code, otp.code_hash)
+        end)
+
+      case matching_otp do
+        nil ->
+          {:error, "Invalid or expired OTP code"}
+
+        otp ->
+          with {:ok, tokens} <- Auth.generate_tokens(otp.user) do
+            # Mark OTP as used
+            otp
+            |> Ecto.Changeset.change(used: true)
+            |> Repo.update()
+
+            # Log the action
+            MyAuthSystem.Audit.Log.log_async(
+              otp.user_id,
+              "LOGIN_SUCCESS",
+              %{method: "otp"},
+              nil
+            )
+
+            {:ok, %{user: otp.user, token: tokens.access_token, refresh_token: tokens.refresh_token}}
+          else
+            {:error, reason} -> {:error, "Failed to generate tokens: #{inspect(reason)}"}
+          end
       end
     rescue
-      Ecto.Query.CastError -> {:error, "Invalid OTP ID format"}
-      _ -> {:error, "Invalid or expired OTP"}
+      e -> {:error, "Error verifying OTP: #{inspect(e)}"}
     end
   end
 
@@ -185,8 +207,6 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
     |> Enum.join()
   end
 
-  defp validate_otp(nil), do: {:error, :invalid_otp}
-  defp validate_otp(otp), do: {:ok, otp}
 
   defp format_errors(changeset) do
     changeset

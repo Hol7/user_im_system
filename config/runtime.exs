@@ -36,15 +36,11 @@ if config_env() != :test do
         "dev_guardian_secret_key_change_me_before_prod"
       end
 
-  config :my_auth_system, Guardian,
+  config :my_auth_system, MyAuthSystem.Auth.GuardianToken,
     issuer: "my_auth_system",
     secret_key: guardian_secret_key,
-    token_verify_module: Guardian.Token.Jwt,
     ttl: {15, :minutes},
-    allowed_algos: ["HS512"],
-    verify_module: Guardian.JWT,
-    permission: %{default: [:read, :write]},
-    token_module: MyAuthSystem.Auth.GuardianToken
+    allowed_algos: ["HS512"]
 
   # === BREVO (Email) ===
   # Must be loaded AFTER Dotenvy sources .env file
