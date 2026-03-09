@@ -116,7 +116,7 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
                 otp.user
                 |> Ecto.Changeset.change(
                   status: :active,
-                  email_verified_at: DateTime.utc_now()
+                  email_verified_at: DateTime.utc_now() |> DateTime.truncate(:second)
                 )
                 |> Repo.update!()
               else
