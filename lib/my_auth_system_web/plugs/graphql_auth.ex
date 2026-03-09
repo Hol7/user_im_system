@@ -23,7 +23,8 @@ defmodule MyAuthSystemWeb.Plugs.GraphQLAuth do
     with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
          {:ok, claims} <- MyAuthSystem.Auth.GuardianToken.decode_and_verify(token),
          {:ok, user} <- MyAuthSystem.Auth.GuardianToken.resource_from_claims(claims) do
-      user
+      # Preload profile for GraphQL queries
+      MyAuthSystem.Repo.preload(user, :profile)
     else
       _ -> nil
     end

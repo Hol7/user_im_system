@@ -110,15 +110,36 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
             |> Ecto.Changeset.change(used: true)
             |> Repo.update()
 
+            # Update user status to ACTIVE and set email_verified_at if this is email verification
+            updated_user =
+              if otp.purpose == :email_verification do
+                otp.user
+                |> Ecto.Changeset.change(
+                  status: :active,
+                  email_verified_at: DateTime.utc_now()
+                )
+                |> Repo.update!()
+              else
+                otp.user
+              end
+
             # Log the action
             MyAuthSystem.Audit.Log.log_async(
               otp.user_id,
               "LOGIN_SUCCESS",
-              %{method: "otp"},
+              %{method: "otp", purpose: otp.purpose},
               nil
             )
 
-            {:ok, %{user: otp.user, token: tokens.access_token, refresh_token: tokens.refresh_token}}
+            # Preload profile for response
+            updated_user = Repo.preload(updated_user, :profile)
+
+            {:ok,
+             %{
+               user: updated_user,
+               token: tokens.access_token,
+               refresh_token: tokens.refresh_token
+             }}
           else
             {:error, reason} -> {:error, "Failed to generate tokens: #{inspect(reason)}"}
           end
@@ -184,12 +205,15 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
   """
   def refresh_token(_parent, %{refresh_token: token}, _resolution) do
     case Auth.refresh_token(token) do
-      {:ok, user, new_access_token, new_refresh_token} ->
+      {:ok, result} ->
+        # Preload profile for response
+        user = Repo.preload(result.user, :profile)
+
         {:ok,
          %{
            user: user,
-           token: new_access_token,
-           refresh_token: new_refresh_token,
+           token: result.access_token,
+           refresh_token: result.refresh_token,
            message: "Token refreshed"
          }}
 

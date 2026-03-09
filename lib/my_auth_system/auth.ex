@@ -52,7 +52,7 @@ defmodule MyAuthSystem.Auth do
          {:ok, user} <- Repo.get(User, refresh_record.user_id) |> validate_user(),
          {:ok, tokens} <- generate_tokens(user),
          :ok <- revoke_refresh_token(refresh_record.id) do
-      {:ok, tokens}
+      {:ok, %{user: user, access_token: tokens.access_token, refresh_token: tokens.refresh_token}}
     else
       {:error, :revoked} -> {:error, "Refresh token has been revoked"}
       {:error, :expired} -> {:error, "Refresh token has expired"}
