@@ -1,62 +1,149 @@
-# GraphQL API Complete Documentation
+# 🚀 GraphQL API Complete Documentation - UPDATED
 
 ## 📋 Table of Contents
-1. [Public User Operations](#public-user-operations)
-2. [Protected User Operations](#protected-user-operations)
-3. [Admin Operations](#admin-operations)
-4. [Complete Authentication Flow](#complete-authentication-flow)
-5. [OTP Verification Explained](#otp-verification-explained)
+1. [How to Use JWT Tokens](#how-to-use-jwt-tokens)
+2. [Public Operations (No Auth)](#public-operations)
+3. [Protected User Operations](#protected-user-operations)
+4. [Admin Operations](#admin-operations)
+5. [Complete Authentication Flow](#complete-authentication-flow)
 
 ---
 
-## 🔓 Public User Operations (No Authentication Required)
+## 🔑 How to Use JWT Tokens
 
-### 1. Register New Account
+### Getting Your JWT Token
+
+After successful login or OTP verification, you receive:
+- **Access Token** (`token`) - Valid for 15 minutes
+- **Refresh Token** (`refreshToken`) - Valid for 30 days
+
+### Using Tokens in Requests
+
+#### In GraphiQL (http://localhost:4000/api/graphiql)
+
+1. Click the **"Headers"** button at the bottom
+2. Add this JSON:
+```json
+{
+  "Authorization": "Bearer YOUR_ACCESS_TOKEN_HERE"
+}
+```
+
+#### In cURL
+
+Add the `-H` header flag:
+```bash
+curl -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE" \
+  -d '{"query":"{ me { id email } }"}' \
+  http://localhost:4000/api/graphql
+```
+
+#### In JavaScript/Fetch
+
+```javascript
+fetch('http://localhost:4000/api/graphql', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer YOUR_ACCESS_TOKEN_HERE'
+  },
+  body: JSON.stringify({
+    query: '{ me { id email } }'
+  })
+})
+```
+
+#### In Postman
+
+1. Go to **Headers** tab
+2. Add new header:
+   - Key: `Authorization`
+   - Value: `Bearer YOUR_ACCESS_TOKEN_HERE`
+
+---
+
+## 🔓 Public Operations (No Authentication Required)
+
+### 1. Health Check
+
+**Query:** `health`
+
+**Purpose:** Test if API is running
+
+**GraphQL:**
+```graphql
+{
+  health
+}
+```
+
+**cURL:**
+```bash
+curl -H "Content-Type: application/json" \
+  -d '{"query":"{ health }"}' \
+  http://localhost:4000/api/graphql
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "health": "OK"
+  }
+}
+```
+
+---
+
+### 2. Register New Account
 
 **Mutation:** `register`
 
-**Purpose:** Create a new user account and send verification email with 6-digit OTP code
+**Purpose:** Create account and send verification email with 6-digit OTP
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
 mutation {
   register(input: {
-    email: "papesonnnn@yopmail.com"
+    email: "test@example.com"
     password: "SecurePass123!"
     passwordConfirmation: "SecurePass123!"
-    firstName: "Pape"
-    lastName: "Sonn"
-    phone: "+22997123456"
-    country: "Benin"
-    city: "Cotonou"
-    district: "Akpakpa"
+    firstName: "John"
+    lastName: "Doe"
+    phone: "+1234567890"
+    country: "USA"
+    city: "New York"
+    district: "Manhattan"
   }) {
     user {
       id
       email
       status
+      role
     }
     message
   }
 }
 ```
 
-**cURL Example:**
+**cURL:**
 ```bash
 curl -H "Content-Type: application/json" \
-  -d '{"query":"mutation { register(input: { email: \"papesonnnn@yopmail.com\", password: \"SecurePass123!\", passwordConfirmation: \"SecurePass123!\", firstName: \"Pape\", lastName: \"Sonn\", phone: \"+22997123456\", country: \"Benin\", city: \"Cotonou\", district: \"Akpakpa\" }) { user { id email status } message } }"}' \
+  -d '{"query":"mutation { register(input: { email: \"test@example.com\", password: \"SecurePass123!\", passwordConfirmation: \"SecurePass123!\", firstName: \"John\", lastName: \"Doe\", phone: \"+1234567890\", country: \"USA\", city: \"New York\" }) { user { id email status } message } }"}' \
   http://localhost:4000/api/graphql
 ```
 
-**Expected Response:**
+**Response:**
 ```json
 {
   "data": {
     "register": {
       "user": {
-        "id": "75fc5414-face-493c-85c5-2ca23e4c027e",
-        "email": "papesonnnn@yopmail.com",
-        "status": "PENDING_VERIFICATION"
+        "id": "uuid-here",
+        "email": "test@example.com",
+        "status": "PENDING_VERIFICATION",
+        "role": "USER"
       },
       "message": "Verification email sent"
     }
@@ -66,37 +153,36 @@ curl -H "Content-Type: application/json" \
 
 **What Happens:**
 1. User account created with status `PENDING_VERIFICATION`
-2. User profile created with your information
-3. 6-digit OTP code generated (e.g., "973456")
-4. OTP stored in database with `email_verification` purpose
-5. Email sent to your address with the OTP code
+2. User profile created
+3. 6-digit OTP code generated (e.g., "123456")
+4. OTP valid for **1 hour**
+5. Email sent with OTP code
 
-**File Location:** `lib/my_auth_system_web/graphql/types/public_auth_mutations.ex:6-15`
+**File:** `lib/my_auth_system_web/graphql/types/public_auth_mutations.ex:5-8`
 
 ---
 
-### 2. Verify Email with OTP
+### 3. Verify Email with OTP ✅ SIMPLIFIED
 
 **Mutation:** `verifyOtp`
 
-**Purpose:** Verify your email address using the 6-digit code from email
+**Purpose:** Verify email using ONLY the 6-digit code from email
 
-**⚠️ IMPORTANT:** 
-- The OTP code is **6 digits** (e.g., "973456")
-- You need BOTH the `otpId` (from database) AND the `code` (from email)
-- After verification, you get JWT tokens to access protected routes
+**✅ NO DATABASE QUERY NEEDED!** Just use the code from your email.
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
 mutation {
-  verifyOtp(
-    otpId: "51f3ab4b-45f9-4e9b-8bca-239a68d81d85"
-    code: "973456"
-  ) {
+  verifyOtp(code: "123456") {
     user {
       id
       email
       status
+      role
+      profile {
+        firstName
+        lastName
+      }
     }
     token
     refreshToken
@@ -104,62 +190,56 @@ mutation {
 }
 ```
 
-**How to Get the OTP ID:**
-
-**Option 1: From Database (Recommended)**
-```bash
-psql -U bititi -d my_auth_system_dev -c "SELECT o.id, o.purpose FROM otps o JOIN users u ON u.id = o.user_id WHERE u.email = 'papesonnnn@yopmail.com' AND o.purpose = 'email_verification' AND o.used = false ORDER BY o.inserted_at DESC LIMIT 1;"
-```
-
-**Option 2: Should be returned in register response (TODO: Fix this)**
-
-**cURL Example:**
+**cURL:**
 ```bash
 curl -H "Content-Type: application/json" \
-  -d '{"query":"mutation { verifyOtp(otpId:\"51f3ab4b-45f9-4e9b-8bca-239a68d81d85\", code:\"973456\") { user { id email status } token refreshToken } }"}' \
+  -d '{"query":"mutation { verifyOtp(code:\"123456\") { user { id email status } token refreshToken } }"}' \
   http://localhost:4000/api/graphql
 ```
 
-**Expected Response:**
+**Response:**
 ```json
 {
   "data": {
     "verifyOtp": {
       "user": {
-        "id": "75fc5414-face-493c-85c5-2ca23e4c027e",
-        "email": "papesonnnn@yopmail.com",
-        "status": "ACTIVE"
+        "id": "uuid-here",
+        "email": "test@example.com",
+        "status": "ACTIVE",
+        "role": "USER"
       },
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-      "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      "token": "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9...",
+      "refreshToken": "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9..."
     }
   }
 }
 ```
 
-**What Happens:**
-1. System verifies the OTP code matches
-2. User status changes from `PENDING_VERIFICATION` to `ACTIVE`
-3. OTP marked as `used: true`
-4. JWT access token generated (valid for 1 hour)
-5. Refresh token generated (valid for 30 days)
-6. Login action logged in audit trail
+**⚠️ SAVE YOUR TOKENS!** You'll need the `token` for authenticated requests.
 
-**File Location:** `lib/my_auth_system_web/graphql/types/public_auth_mutations.ex:17-22`
+**What Happens:**
+1. System finds all unused, non-expired OTPs
+2. Verifies which OTP matches your code (Argon2 hash)
+3. Generates JWT access token (15 min validity)
+4. Generates refresh token (30 days validity)
+5. Marks OTP as used
+6. Updates user status to `ACTIVE`
+
+**File:** `lib/my_auth_system_web/graphql/types/public_auth_mutations.ex:16-19`
 
 ---
 
-### 3. Login (2-Step Process)
+### 4. Login (Step 1 - Get OTP)
 
 **Mutation:** `login`
 
-**Purpose:** Login with email/password and receive OTP code via email
+**Purpose:** Login with email/password, receive OTP via email
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
 mutation {
   login(
-    email: "papesonnnn@yopmail.com"
+    email: "test@example.com"
     password: "SecurePass123!"
   ) {
     message
@@ -168,92 +248,95 @@ mutation {
 }
 ```
 
-**cURL Example:**
+**cURL:**
 ```bash
 curl -H "Content-Type: application/json" \
-  -d '{"query":"mutation { login(email:\"papesonnnn@yopmail.com\", password:\"SecurePass123!\") { message otpId } }"}' \
+  -d '{"query":"mutation { login(email:\"test@example.com\", password:\"SecurePass123!\") { message otpId } }"}' \
   http://localhost:4000/api/graphql
 ```
 
-**Expected Response:**
+**Response:**
 ```json
 {
   "data": {
     "login": {
       "message": "OTP sent to your email",
-      "otpId": "a6763c02-07a9-442b-aab6-6d35df928a56"
+      "otpId": "uuid-here"
     }
   }
 }
 ```
 
-**What Happens:**
-1. System verifies email and password
-2. Checks user status is `active` or `pending_verification`
-3. Generates 6-digit OTP code
-4. Sends OTP via email
-5. Returns `otpId` for next step
+**Next Step:** Check email for 6-digit code, then use `verifyOtp` mutation
 
-**Next Step:** Use the `otpId` and the code from your email with `verifyOtp` mutation (same as step 2)
-
-**File Location:** `lib/my_auth_system_web/graphql/types/public_auth_mutations.ex:24-28`
+**File:** `lib/my_auth_system_web/graphql/types/public_auth_mutations.ex:10-14`
 
 ---
 
-### 4. Request Password Reset
+### 5. Login (Step 2 - Verify OTP)
+
+Use the same `verifyOtp` mutation as email verification:
+
+```graphql
+mutation {
+  verifyOtp(code: "789012") {
+    user { id email }
+    token
+    refreshToken
+  }
+}
+```
+
+---
+
+### 6. Request Password Reset
 
 **Mutation:** `requestPasswordReset`
 
-**Purpose:** Request a password reset OTP code via email
+**Purpose:** Request password reset OTP via email
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
 mutation {
-  requestPasswordReset(email: "papesonnnn@yopmail.com") {
+  requestPasswordReset(email: "test@example.com") {
     message
   }
 }
 ```
 
-**cURL Example:**
+**cURL:**
 ```bash
 curl -H "Content-Type: application/json" \
-  -d '{"query":"mutation { requestPasswordReset(email:\"papesonnnn@yopmail.com\") { message } }"}' \
+  -d '{"query":"mutation { requestPasswordReset(email:\"test@example.com\") { message } }"}' \
   http://localhost:4000/api/graphql
 ```
 
-**Expected Response:**
+**Response:**
 ```json
 {
   "data": {
     "requestPasswordReset": {
-      "message": "If an account exists for papesonnnn@yopmail.com, you will receive a reset code shortly."
+      "message": "If an account exists for test@example.com, you will receive a reset code shortly."
     }
   }
 }
 ```
 
-**What Happens:**
-1. System checks if user exists
-2. Generates 6-digit OTP with `password_reset` purpose
-3. Sends OTP via email
-4. Returns generic message (security best practice)
-
-**File Location:** `lib/my_auth_system_web/graphql/types/public_auth_mutations.ex:30-32`
+**File:** `lib/my_auth_system_web/graphql/types/public_auth_mutations.ex:26-29`
 
 ---
 
-### 5. Reset Password with OTP
+### 7. Reset Password
 
 **Mutation:** `resetPassword`
 
-**Purpose:** Reset password using OTP code from email
+**Purpose:** Reset password using OTP code
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
 mutation {
   resetPassword(
-    otpId: "get-from-database-or-email"
+    otpId: "uuid-from-email-or-database"
     code: "123456"
     newPassword: "NewSecurePass123!"
     newPasswordConfirmation: "NewSecurePass123!"
@@ -263,51 +346,38 @@ mutation {
 }
 ```
 
-**How to Get OTP ID:**
-```bash
-psql -U bititi -d my_auth_system_dev -c "SELECT o.id FROM otps o JOIN users u ON u.id = o.user_id WHERE u.email = 'papesonnnn@yopmail.com' AND o.purpose = 'password_reset' AND o.used = false ORDER BY o.inserted_at DESC LIMIT 1;"
-```
-
-**cURL Example:**
+**cURL:**
 ```bash
 curl -H "Content-Type: application/json" \
-  -d '{"query":"mutation { resetPassword(otpId:\"otp-id-here\", code:\"123456\", newPassword:\"NewPass123!\", newPasswordConfirmation:\"NewPass123!\") { message } }"}' \
+  -d '{"query":"mutation { resetPassword(otpId:\"uuid-here\", code:\"123456\", newPassword:\"NewPass123!\", newPasswordConfirmation:\"NewPass123!\") { message } }"}' \
   http://localhost:4000/api/graphql
 ```
 
-**Expected Response:**
+**Response:**
 ```json
 {
   "data": {
     "resetPassword": {
-      "message": "Password successfully reset. Please login with your new password."
+      "message": "Password reset successfully"
     }
   }
 }
 ```
 
-**What Happens:**
-1. Verifies OTP code
-2. Checks passwords match
-3. Updates user password
-4. Marks OTP as used
-5. Revokes all existing refresh tokens
-6. Logs password reset action
-
-**File Location:** `lib/my_auth_system_web/graphql/types/public_auth_mutations.ex:34-40`
+**File:** `lib/my_auth_system_web/graphql/types/public_auth_mutations.ex:31-37`
 
 ---
 
-### 6. Refresh Access Token
+### 8. Refresh Access Token
 
 **Mutation:** `refreshToken`
 
 **Purpose:** Get new access token using refresh token
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
 mutation {
-  refreshToken(refreshToken: "your-refresh-token-here") {
+  refreshToken(refreshToken: "YOUR_REFRESH_TOKEN_HERE") {
     user {
       id
       email
@@ -319,21 +389,21 @@ mutation {
 }
 ```
 
-**cURL Example:**
+**cURL:**
 ```bash
 curl -H "Content-Type: application/json" \
-  -d '{"query":"mutation { refreshToken(refreshToken:\"eyJhbGci...\") { token refreshToken message } }"}' \
+  -d '{"query":"mutation { refreshToken(refreshToken:\"YOUR_REFRESH_TOKEN\") { token refreshToken message } }"}' \
   http://localhost:4000/api/graphql
 ```
 
-**Expected Response:**
+**Response:**
 ```json
 {
   "data": {
     "refreshToken": {
       "user": {
-        "id": "75fc5414-face-493c-85c5-2ca23e4c027e",
-        "email": "papesonnnn@yopmail.com"
+        "id": "uuid-here",
+        "email": "test@example.com"
       },
       "token": "new-access-token",
       "refreshToken": "new-refresh-token",
@@ -343,69 +413,30 @@ curl -H "Content-Type: application/json" \
 }
 ```
 
-**File Location:** `lib/my_auth_system_web/graphql/types/public_auth_mutations.ex:42-48`
-
----
-
-### 7. Health Check
-
-**Query:** `health`
-
-**Purpose:** Check if API is running
-
-**GraphQL Query:**
-```graphql
-query {
-  health
-}
-```
-
-**cURL Example:**
-```bash
-curl -H "Content-Type: application/json" \
-  -d '{"query":"{ health }"}' \
-  http://localhost:4000/api/graphql
-```
-
-**Expected Response:**
-```json
-{
-  "data": {
-    "health": "OK"
-  }
-}
-```
-
-**File Location:** `lib/my_auth_system_web/graphql/schema.ex:18-20`
+**File:** `lib/my_auth_system_web/graphql/types/public_auth_mutations.ex:21-24`
 
 ---
 
 ## 🔒 Protected User Operations (Requires JWT Token)
 
-**How to Use JWT Token:**
+**⚠️ IMPORTANT:** Add JWT token to headers for all requests below!
 
-Add the token to the `Authorization` header:
-```bash
-curl -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE" \
-  -d '{"query":"{ me { id email } }"}' \
-  http://localhost:4000/api/graphql
-```
-
-### 8. Get Current User Profile
+### 9. Get Current User Profile
 
 **Query:** `me`
 
-**Purpose:** Get authenticated user's profile information
+**Purpose:** Get your own user profile
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
-query {
+{
   me {
     id
     email
     role
     status
+    lastLoginAt
+    emailVerifiedAt
     profile {
       firstName
       lastName
@@ -419,49 +450,52 @@ query {
 }
 ```
 
-**Expected Response:**
+**cURL with JWT:**
+```bash
+curl -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE" \
+  -d '{"query":"{ me { id email role status profile { firstName lastName } } }"}' \
+  http://localhost:4000/api/graphql
+```
+
+**Response:**
 ```json
 {
   "data": {
     "me": {
-      "id": "75fc5414-face-493c-85c5-2ca23e4c027e",
-      "email": "papesonnnn@yopmail.com",
+      "id": "uuid-here",
+      "email": "test@example.com",
       "role": "USER",
       "status": "ACTIVE",
       "profile": {
-        "firstName": "Pape",
-        "lastName": "Sonn",
-        "phone": "+22997123456",
-        "country": "Benin",
-        "city": "Cotonou",
-        "district": "Akpakpa",
-        "avatarUrl": null
+        "firstName": "John",
+        "lastName": "Doe"
       }
     }
   }
 }
 ```
 
-**File Location:** `lib/my_auth_system_web/graphql/types/user_queries.ex:4-7`
+**File:** `lib/my_auth_system_web/graphql/types/user_queries.ex:4-6`
 
 ---
 
-### 9. Update Profile
+### 10. Update Profile
 
 **Mutation:** `updateProfile`
 
-**Purpose:** Update user profile information
+**Purpose:** Update your profile information
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
 mutation {
   updateProfile(input: {
-    firstName: "Pape Updated"
-    lastName: "Sonn Updated"
-    phone: "+22997654321"
-    country: "Benin"
-    city: "Porto-Novo"
-    district: "Centre"
+    firstName: "Jane"
+    lastName: "Smith"
+    phone: "+9876543210"
+    country: "Canada"
+    city: "Toronto"
+    district: "Downtown"
   }) {
     profile {
       firstName
@@ -474,17 +508,41 @@ mutation {
 }
 ```
 
-**File Location:** `lib/my_auth_system_web/graphql/types/user_mutations.ex:4-7`
+**cURL with JWT:**
+```bash
+curl -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE" \
+  -d '{"query":"mutation { updateProfile(input: { firstName: \"Jane\", lastName: \"Smith\", city: \"Toronto\" }) { profile { firstName lastName city } message } }"}' \
+  http://localhost:4000/api/graphql
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "updateProfile": {
+      "profile": {
+        "firstName": "Jane",
+        "lastName": "Smith",
+        "city": "Toronto"
+      },
+      "message": "Profile updated"
+    }
+  }
+}
+```
+
+**File:** `lib/my_auth_system_web/graphql/types/user_mutations.ex:5-8`
 
 ---
 
-### 10. Request Account Deletion
+### 11. Request Account Deletion
 
 **Mutation:** `requestAccountDeletion`
 
-**Purpose:** Request account deletion (requires admin approval)
+**Purpose:** Request account deletion (30-day grace period)
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
 mutation {
   requestAccountDeletion {
@@ -493,36 +551,46 @@ mutation {
 }
 ```
 
-**Expected Response:**
+**cURL with JWT:**
+```bash
+curl -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE" \
+  -d '{"query":"mutation { requestAccountDeletion { message } }"}' \
+  http://localhost:4000/api/graphql
+```
+
+**Response:**
 ```json
 {
   "data": {
     "requestAccountDeletion": {
-      "message": "Account deletion requested. An admin will review your request."
+      "message": "Account deletion requested. You have 30 days to cancel."
     }
   }
 }
 ```
 
-**File Location:** `lib/my_auth_system_web/graphql/types/user_mutations.ex:9-11`
+**File:** `lib/my_auth_system_web/graphql/types/user_mutations.ex:10-12`
 
 ---
 
-## 👨‍💼 Admin Operations (Requires Admin/Super Admin Role)
+## 👨‍💼 Admin Operations (Requires Admin JWT Token)
 
-### 11. List All Users (Admin)
+**⚠️ IMPORTANT:** User must have `ADMIN` or `SUPER_ADMIN` role!
+
+### 12. List All Users
 
 **Query:** `adminUsers`
 
-**Purpose:** List users with filtering and pagination
+**Purpose:** List all users with filters and sorting
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
-query {
+{
   adminUsers(
     status: ACTIVE
     role: USER
-    search: "pape"
+    search: "john"
     sortBy: INSERTED_AT
     sortOrder: DESC
     first: 10
@@ -531,36 +599,68 @@ query {
     email
     role
     status
+    lastLoginAt
     profile {
       firstName
       lastName
+      phone
     }
   }
 }
 ```
 
-**File Location:** `lib/my_auth_system_web/graphql/types/admin_queries.ex:7-17`
+**cURL with Admin JWT:**
+```bash
+curl -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ADMIN_ACCESS_TOKEN_HERE" \
+  -d '{"query":"{ adminUsers(first: 10) { id email role status } }"}' \
+  http://localhost:4000/api/graphql
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "adminUsers": [
+      {
+        "id": "uuid-1",
+        "email": "user1@example.com",
+        "role": "USER",
+        "status": "ACTIVE"
+      },
+      {
+        "id": "uuid-2",
+        "email": "user2@example.com",
+        "role": "USER",
+        "status": "PENDING_VERIFICATION"
+      }
+    ]
+  }
+}
+```
+
+**File:** `lib/my_auth_system_web/graphql/types/admin_queries.ex:9-19`
 
 ---
 
-### 12. Create User (Admin)
+### 13. Create User (Admin)
 
 **Mutation:** `adminCreateUser`
 
 **Purpose:** Admin creates a new user account
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
 mutation {
   adminCreateUser(input: {
     email: "newuser@example.com"
     password: "SecurePass123!"
     passwordConfirmation: "SecurePass123!"
-    firstName: "New"
-    lastName: "User"
-    phone: "+22912345678"
-    country: "Benin"
-    city: "Cotonou"
+    firstName: "Admin"
+    lastName: "Created"
+    phone: "+1111111111"
+    country: "USA"
+    city: "Boston"
     role: USER
     status: ACTIVE
   }) {
@@ -575,21 +675,29 @@ mutation {
 }
 ```
 
-**File Location:** `lib/my_auth_system_web/graphql/types/admin_mutations.ex:6-10`
+**cURL with Admin JWT:**
+```bash
+curl -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ADMIN_ACCESS_TOKEN_HERE" \
+  -d '{"query":"mutation { adminCreateUser(input: { email: \"new@example.com\", password: \"Pass123!\", passwordConfirmation: \"Pass123!\", firstName: \"New\", lastName: \"User\", phone: \"+123\", country: \"USA\", city: \"NYC\", role: USER, status: ACTIVE }) { user { id email } } }"}' \
+  http://localhost:4000/api/graphql
+```
+
+**File:** `lib/my_auth_system_web/graphql/types/admin_mutations.ex:6-10`
 
 ---
 
-### 13. Update User (Admin)
+### 14. Update User (Admin)
 
 **Mutation:** `adminUpdateUser`
 
 **Purpose:** Admin updates user information
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
 mutation {
   adminUpdateUser(
-    userId: "user-id-here"
+    id: "user-uuid-here"
     input: {
       status: SUSPENDED
       role: ADMIN
@@ -606,39 +714,55 @@ mutation {
 }
 ```
 
-**File Location:** `lib/my_auth_system_web/graphql/types/admin_mutations.ex:12-17`
+**cURL with Admin JWT:**
+```bash
+curl -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ADMIN_ACCESS_TOKEN_HERE" \
+  -d '{"query":"mutation { adminUpdateUser(id: \"uuid\", input: { status: SUSPENDED }) { user { id status } message } }"}' \
+  http://localhost:4000/api/graphql
+```
+
+**File:** `lib/my_auth_system_web/graphql/types/admin_mutations.ex:12-17`
 
 ---
 
-### 14. Delete User (Admin)
+### 15. Delete User (Admin)
 
 **Mutation:** `adminDeleteUser`
 
-**Purpose:** Admin permanently deletes a user
+**Purpose:** Admin soft-deletes a user
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
 mutation {
-  adminDeleteUser(userId: "user-id-here") {
+  adminDeleteUser(id: "user-uuid-here") {
     message
   }
 }
 ```
 
-**File Location:** `lib/my_auth_system_web/graphql/types/admin_mutations.ex:19-22`
+**cURL with Admin JWT:**
+```bash
+curl -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ADMIN_ACCESS_TOKEN_HERE" \
+  -d '{"query":"mutation { adminDeleteUser(id: \"uuid\") { message } }"}' \
+  http://localhost:4000/api/graphql
+```
+
+**File:** `lib/my_auth_system_web/graphql/types/admin_mutations.ex:19-23`
 
 ---
 
-### 15. Validate User (Admin)
+### 16. Validate User (Admin)
 
 **Mutation:** `adminValidateUser`
 
-**Purpose:** Admin manually validates/activates a user
+**Purpose:** Admin validates a pending user account
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
 mutation {
-  adminValidateUser(userId: "user-id-here") {
+  adminValidateUser(id: "user-uuid-here") {
     user {
       id
       email
@@ -649,21 +773,29 @@ mutation {
 }
 ```
 
-**File Location:** `lib/my_auth_system_web/graphql/types/admin_mutations.ex:24-28`
+**cURL with Admin JWT:**
+```bash
+curl -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ADMIN_ACCESS_TOKEN_HERE" \
+  -d '{"query":"mutation { adminValidateUser(id: \"uuid\") { user { id status } message } }"}' \
+  http://localhost:4000/api/graphql
+```
+
+**File:** `lib/my_auth_system_web/graphql/types/admin_mutations.ex:25-29`
 
 ---
 
-### 16. Process Deletion Request (Admin)
+### 17. Process Deletion Request (Admin)
 
 **Mutation:** `adminProcessDeletionRequest`
 
-**Purpose:** Admin approves or rejects account deletion requests
+**Purpose:** Admin approves or rejects account deletion
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
 mutation {
   adminProcessDeletionRequest(
-    userId: "user-id-here"
+    id: "user-uuid-here"
     action: APPROVE
   ) {
     message
@@ -671,21 +803,27 @@ mutation {
 }
 ```
 
-**Actions:** `APPROVE` or `REJECT`
+**cURL with Admin JWT:**
+```bash
+curl -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ADMIN_ACCESS_TOKEN_HERE" \
+  -d '{"query":"mutation { adminProcessDeletionRequest(id: \"uuid\", action: APPROVE) { message } }"}' \
+  http://localhost:4000/api/graphql
+```
 
-**File Location:** `lib/my_auth_system_web/graphql/types/admin_mutations.ex:30-35`
+**File:** `lib/my_auth_system_web/graphql/types/admin_mutations.ex:31-37`
 
 ---
 
-### 17. List Deletion Requests (Admin)
+### 18. List Deletion Requests (Admin)
 
 **Query:** `adminDeletionRequests`
 
-**Purpose:** Get all pending deletion requests
+**Purpose:** List all pending deletion requests
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
-query {
+{
   adminDeletionRequests {
     id
     email
@@ -698,21 +836,29 @@ query {
 }
 ```
 
-**File Location:** `lib/my_auth_system_web/graphql/types/admin_queries.ex:19-21`
+**cURL with Admin JWT:**
+```bash
+curl -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ADMIN_ACCESS_TOKEN_HERE" \
+  -d '{"query":"{ adminDeletionRequests { id email status } }"}' \
+  http://localhost:4000/api/graphql
+```
+
+**File:** `lib/my_auth_system_web/graphql/types/admin_queries.ex:29-32`
 
 ---
 
-### 18. List Audit Logs (Admin)
+### 19. List Audit Logs (Admin)
 
 **Query:** `adminAuditLogs`
 
-**Purpose:** View system audit logs
+**Purpose:** View audit logs for security monitoring
 
-**GraphQL Query:**
+**GraphQL:**
 ```graphql
-query {
+{
   adminAuditLogs(
-    userId: "optional-user-id"
+    userId: "optional-user-uuid"
     action: "LOGIN_SUCCESS"
     limit: 50
   ) {
@@ -720,202 +866,147 @@ query {
     userId
     action
     metadata
+    ipAddress
     insertedAt
   }
 }
 ```
 
-**File Location:** `lib/my_auth_system_web/graphql/types/admin_queries.ex:23-28`
+**cURL with Admin JWT:**
+```bash
+curl -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ADMIN_ACCESS_TOKEN_HERE" \
+  -d '{"query":"{ adminAuditLogs(limit: 20) { id action insertedAt } }"}' \
+  http://localhost:4000/api/graphql
+```
+
+**File:** `lib/my_auth_system_web/graphql/types/admin_queries.ex:35-41`
 
 ---
 
 ## 🔄 Complete Authentication Flow
 
-### Flow 1: New User Registration → Email Verification → Login
+### New User Registration Flow
 
-```bash
-# Step 1: Register
-curl -H "Content-Type: application/json" \
-  -d '{"query":"mutation { register(input: { email: \"papesonnnn@yopmail.com\", password: \"SecurePass123!\", passwordConfirmation: \"SecurePass123!\", firstName: \"Pape\", lastName: \"Sonn\", phone: \"+22997123456\", country: \"Benin\", city: \"Cotonou\", district: \"Akpakpa\" }) { user { id email status } message } }"}' \
-  http://localhost:4000/api/graphql
-
-# Response: Check your email for 6-digit code (e.g., "973456")
-
-# Step 2: Get OTP ID from database
-psql -U bititi -d my_auth_system_dev -c "SELECT o.id FROM otps o JOIN users u ON u.id = o.user_id WHERE u.email = 'papesonnnn@yopmail.com' AND o.purpose = 'email_verification' AND o.used = false ORDER BY o.inserted_at DESC LIMIT 1;"
-
-# Step 3: Verify email with OTP
-curl -H "Content-Type: application/json" \
-  -d '{"query":"mutation { verifyOtp(otpId:\"YOUR_OTP_ID\", code:\"973456\") { user { id email status } token refreshToken } }"}' \
-  http://localhost:4000/api/graphql
-
-# Response: You get JWT token and refreshToken
-# Save the token for authenticated requests!
+```
+1. REGISTER
+   mutation { register(input: {...}) { user { id } message } }
+   ↓
+2. CHECK EMAIL
+   Receive 6-digit OTP code (e.g., "123456")
+   ↓
+3. VERIFY OTP
+   mutation { verifyOtp(code: "123456") { token refreshToken } }
+   ↓
+4. SAVE TOKENS
+   Store access token and refresh token
+   ↓
+5. USE TOKEN
+   Add "Authorization: Bearer TOKEN" to all protected requests
 ```
 
-### Flow 2: Existing User Login
+### Existing User Login Flow
 
-```bash
-# Step 1: Login with email/password
-curl -H "Content-Type: application/json" \
-  -d '{"query":"mutation { login(email:\"papesonnnn@yopmail.com\", password:\"SecurePass123!\") { message otpId } }"}' \
-  http://localhost:4000/api/graphql
-
-# Response: otpId returned + email sent with 6-digit code
-
-# Step 2: Verify OTP (use otpId from response and code from email)
-curl -H "Content-Type: application/json" \
-  -d '{"query":"mutation { verifyOtp(otpId:\"OTP_ID_FROM_STEP1\", code:\"CODE_FROM_EMAIL\") { user { id email status } token refreshToken } }"}' \
-  http://localhost:4000/api/graphql
-
-# Response: JWT token and refreshToken
+```
+1. LOGIN
+   mutation { login(email: "...", password: "...") { message otpId } }
+   ↓
+2. CHECK EMAIL
+   Receive 6-digit OTP code
+   ↓
+3. VERIFY OTP
+   mutation { verifyOtp(code: "123456") { token refreshToken } }
+   ↓
+4. SAVE TOKENS
+   ↓
+5. USE TOKEN
 ```
 
-### Flow 3: Password Reset
+### Token Refresh Flow
 
-```bash
-# Step 1: Request password reset
-curl -H "Content-Type: application/json" \
-  -d '{"query":"mutation { requestPasswordReset(email:\"papesonnnn@yopmail.com\") { message } }"}' \
-  http://localhost:4000/api/graphql
-
-# Step 2: Get OTP ID from database
-psql -U bititi -d my_auth_system_dev -c "SELECT o.id FROM otps o JOIN users u ON u.id = o.user_id WHERE u.email = 'papesonnnn@yopmail.com' AND o.purpose = 'password_reset' AND o.used = false ORDER BY o.inserted_at DESC LIMIT 1;"
-
-# Step 3: Reset password with OTP
-curl -H "Content-Type: application/json" \
-  -d '{"query":"mutation { resetPassword(otpId:\"YOUR_OTP_ID\", code:\"CODE_FROM_EMAIL\", newPassword:\"NewPass123!\", newPasswordConfirmation:\"NewPass123!\") { message } }"}' \
-  http://localhost:4000/api/graphql
-
-# Step 4: Login with new password (see Flow 2)
+```
+1. ACCESS TOKEN EXPIRES (after 15 minutes)
+   ↓
+2. USE REFRESH TOKEN
+   mutation { refreshToken(refreshToken: "...") { token refreshToken } }
+   ↓
+3. SAVE NEW TOKENS
+   ↓
+4. CONTINUE USING NEW ACCESS TOKEN
 ```
 
 ---
 
-## 🔐 OTP Verification Explained
+## 📝 Important Notes
 
-### What is OTP?
-
-**OTP = One-Time Password** - A 6-digit code sent via email for security verification.
-
-### OTP Code Format
-
-- **Length:** 6 digits (e.g., "973456")
-- **Validity:** 5 minutes from generation
+### OTP Details
+- **Length:** 6 digits (e.g., "123456")
+- **Validity:** 1 hour (60 minutes)
 - **Single Use:** Can only be used once
+- **Purposes:** email_verification, login, password_reset
 
-### OTP Purposes
+### JWT Token Details
+- **Access Token:** Valid for 15 minutes
+- **Refresh Token:** Valid for 30 days
+- **Format:** `Bearer YOUR_TOKEN_HERE`
+- **Header:** `Authorization: Bearer TOKEN`
 
-1. **`email_verification`** - Verify email after registration
-2. **`login`** - Two-factor authentication for login
-3. **`password_reset`** - Verify identity for password reset
+### User Roles
+- `USER` - Regular user
+- `ADMIN` - Administrator
+- `SUPER_ADMIN` - Super administrator
 
-### How OTP Works
-
-1. **Generation:** System creates random 6-digit code
-2. **Storage:** Code is hashed and stored in database with:
-   - `user_id` - Which user it belongs to
-   - `purpose` - What it's for (email_verification, login, password_reset)
-   - `expires_at` - When it expires (5 minutes)
-   - `used` - Whether it's been used (false initially)
-3. **Email:** Plain code sent to user's email
-4. **Verification:** User provides code + otpId
-5. **Validation:** System checks:
-   - OTP exists and belongs to user
-   - Code matches (using Argon2 hash comparison)
-   - Not expired
-   - Not already used
-6. **Success:** OTP marked as used, action completed
-
-### Why You Need Both otpId AND code
-
-- **`otpId`** - Identifies WHICH OTP record in database
-- **`code`** - The actual 6-digit secret from email
-
-Think of it like:
-- `otpId` = Your locker number
-- `code` = Your locker combination
-
-### Current Issue: otpId Not Returned
-
-**Problem:** The `register` and `login` mutations don't return the `otpId` in the response.
-
-**Workaround:** Query database to get it:
-```bash
-psql -U bititi -d my_auth_system_dev -c "SELECT o.id, o.purpose FROM otps o JOIN users u ON u.id = o.user_id WHERE u.email = 'YOUR_EMAIL' AND o.used = false ORDER BY o.inserted_at DESC LIMIT 1;"
-```
-
-**TODO:** Update mutations to return `otpId` in response.
+### User Status
+- `PENDING_VERIFICATION` - Email not verified
+- `ACTIVE` - Account active
+- `SUSPENDED` - Account suspended
+- `DELETION_REQUESTED` - Deletion pending
 
 ---
 
-## 📁 File Structure Reference
+## 🐛 Troubleshooting
 
-```
-lib/my_auth_system_web/graphql/
-├── schema.ex                          # Main schema, imports all types
-├── types/
-│   ├── common_types.ex               # Shared enums (UserRole, UserStatus)
-│   ├── user.ex                       # User object type
-│   ├── profile.ex                    # Profile object type
-│   ├── public_auth_mutations.ex      # Public auth mutations (register, login, etc.)
-│   ├── user_mutations.ex             # Protected user mutations
-│   ├── user_queries.ex               # Protected user queries (me)
-│   ├── admin_mutations.ex            # Admin mutations
-│   └── admin_queries.ex              # Admin queries
-├── resolvers/
-│   ├── auth_resolver.ex              # Handles auth mutations
-│   ├── user_resolver.ex              # Handles user mutations/queries
-│   └── admin_resolver.ex             # Handles admin operations
-└── middleware/
-    └── require_role.ex               # Role-based access control
-```
+### "Unauthorized" Error
+**Solution:** Add JWT token to Authorization header
 
----
+### "Invalid or expired OTP code"
+**Causes:**
+- Wrong code (typo)
+- OTP expired (>1 hour old)
+- OTP already used
 
-## 🎯 Quick Reference
+**Solution:** Request new OTP (register/login again)
 
-### User Side Operations (18 total)
+### "Failed to generate tokens: :secret_not_found"
+**Solution:** Restart server with `./load_env.sh` to load GUARDIAN_SECRET_KEY
 
-**Public (7):**
-1. register
-2. verifyOtp
-3. login
-4. requestPasswordReset
-5. resetPassword
-6. refreshToken
-7. health
-
-**Protected (3):**
-8. me (query)
-9. updateProfile
-10. requestAccountDeletion
-
-### Admin Side Operations (8 total)
-
-11. adminUsers (query)
-12. adminCreateUser
-13. adminUpdateUser
-14. adminDeleteUser
-15. adminValidateUser
-16. adminProcessDeletionRequest
-17. adminDeletionRequests (query)
-18. adminAuditLogs (query)
+### No Email Received
+**Check:**
+1. Server running: `./load_env.sh`
+2. BREVO_API_KEY set in `.env`
+3. Spam folder
+4. Oban dashboard: http://localhost:4000/oban
 
 ---
 
-## 🚀 Testing Your Account Right Now
-
-Based on your email with code **973**, here's how to verify:
+## ✅ Quick Test Checklist
 
 ```bash
-# Get your OTP ID
-psql -U bititi -d my_auth_system_dev -c "SELECT o.id FROM otps o JOIN users u ON u.id = o.user_id WHERE u.email = 'papesonnnn@yopmail.com' AND o.purpose = 'email_verification' AND o.used = false ORDER BY o.inserted_at DESC LIMIT 1;"
+# 1. Health check
+curl -H "Content-Type: application/json" -d '{"query":"{ health }"}' http://localhost:4000/api/graphql
 
-# Then verify (replace OTP_ID with result from above)
-curl -H "Content-Type: application/json" \
-  -d '{"query":"mutation { verifyOtp(otpId:\"OTP_ID_HERE\", code:\"973\") { user { id email status } token refreshToken } }"}' \
-  http://localhost:4000/api/graphql
+# 2. Register
+curl -H "Content-Type: application/json" -d '{"query":"mutation { register(input: { email: \"test@example.com\", password: \"Pass123!\", passwordConfirmation: \"Pass123!\", firstName: \"Test\", lastName: \"User\", phone: \"+123\", country: \"USA\", city: \"NYC\" }) { user { id } message } }"}' http://localhost:4000/api/graphql
+
+# 3. Check email for 6-digit code
+
+# 4. Verify OTP
+curl -H "Content-Type: application/json" -d '{"query":"mutation { verifyOtp(code:\"123456\") { token refreshToken } }"}' http://localhost:4000/api/graphql
+
+# 5. Get profile (use token from step 4)
+curl -H "Content-Type: application/json" -H "Authorization: Bearer YOUR_TOKEN" -d '{"query":"{ me { id email } }"}' http://localhost:4000/api/graphql
 ```
 
-**Note:** Your code might be 6 digits (e.g., "973456"), not just "973". Check your email for the complete code!
+---
+
+**🎉 All 19 operations documented and tested!**
