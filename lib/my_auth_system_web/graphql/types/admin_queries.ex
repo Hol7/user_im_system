@@ -12,8 +12,8 @@ defmodule MyAuthSystemWeb.GraphQL.Types.AdminQueries do
       arg(:search, :string)
       arg(:sort_by, :user_sort_field, default_value: :inserted_at)
       arg(:sort_order, :sort_order, default_value: :desc)
-      arg(:first, :integer)
-      arg(:after, :string)
+      arg(:limit, :integer, default_value: 50)
+      arg(:offset, :integer, default_value: 0)
       middleware(MyAuthSystemWeb.GraphQL.Middleware.RequireRole, [:admin, :super_admin])
       resolve(&MyAuthSystemWeb.GraphQL.Resolvers.AdminResolver.list_users/3)
     end
@@ -42,14 +42,14 @@ defmodule MyAuthSystemWeb.GraphQL.Types.AdminQueries do
   end
 
   enum :user_sort_field do
-    value(:inserted_at)
-    value(:last_login_at)
-    value(:email)
+    value(:INSERTED_AT, as: :inserted_at)
+    value(:LAST_LOGIN_AT, as: :last_login_at)
+    value(:EMAIL, as: :email)
   end
 
   enum :sort_order do
-    value(:asc)
-    value(:desc)
+    value(:ASC, as: :asc)
+    value(:DESC, as: :desc)
   end
 
   object :audit_log do

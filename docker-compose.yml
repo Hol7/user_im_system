@@ -1,70 +1,39 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:15-alpine
-    container_name: my_auth_system_db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: my_auth_system_prod
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 3s
       retries: 5
-    networks:
-      - my_auth_network
 
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: my_auth_system_app
+    build: .
     depends_on:
       db:
         condition: service_healthy
     environment:
-      # Database
       DATABASE_URL: "ecto://postgres:postgres@db/my_auth_system_prod"
-      
-      # Phoenix
       PHX_HOST: "localhost"
       PHX_SERVER: "true"
       PORT: "4000"
-      
-      # Secrets (CHANGE THESE IN PRODUCTION!)
-      SECRET_KEY_BASE: "your-secret-key-base-change-me-in-production-min-64-chars-long"
-      GUARDIAN_SECRET_KEY: "your-guardian-secret-key-change-me-in-production"
-      
-      # Brevo Email (add your API key)
-      BREVO_API_KEY: "${BREVO_API_KEY:-your-brevo-api-key-here}"
+      SECRET_KEY_BASE: "your-secret-key-base-min-64-chars-change-in-production-abcdef123456"
+      GUARDIAN_SECRET_KEY: "your-guardian-secret-change-in-production"
+      BREVO_API_KEY: "${BREVO_API_KEY}"
       BREVO_SENDER_NAME: "MyAuth System"
       BREVO_SENDER_EMAIL: "noreply@myauthsystem.com"
-      
-      # Oban Dashboard
-      OBAN_DASHBOARD_PASS: "change_me"
-      
-      # Release
-      RELEASE_COOKIE: "my-auth-system-cookie-change-me"
+      MIX_ENV: "prod"
     ports:
       - "4000:4000"
-    networks:
-      - my_auth_network
     restart: unless-stopped
-    command: >
-      sh -c "
-        /app/bin/my_auth_system eval 'MyAuthSystem.Release.migrate' &&
-        /app/bin/my_auth_system start
-      "
 
 volumes:
   postgres_data:
-
-networks:
-  my_auth_network:
-    driver: bridge

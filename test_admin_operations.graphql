@@ -1,0 +1,207 @@
+# Admin Operations Test File
+# Use lowercase enum values: admin, user, active, suspended, approve, reject
+
+# ============================================
+# ADMIN QUERIES
+# ============================================
+
+# 1. List All Users (FIXED - use lowercase enums)
+{
+  adminUsers(
+    status: active
+    role: user
+    search: ""
+    sortBy: inserted_at
+    sortOrder: desc
+    limit: 10
+    offset: 0
+  ) {
+    id
+    email
+    role
+    status
+    lastLoginAt
+    profile {
+      firstName
+      lastName
+      phone
+    }
+  }
+}
+
+# 2. Get Single User
+{
+  adminUser(id: "USER_UUID_HERE") {
+    id
+    email
+    role
+    status
+    emailVerifiedAt
+    profile {
+      firstName
+      lastName
+      phone
+      city
+      country
+    }
+  }
+}
+
+# 3. List Deletion Requests
+{
+  adminDeletionRequests {
+    id
+    email
+    status
+    profile {
+      firstName
+      lastName
+    }
+  }
+}
+
+# 4. List Audit Logs
+{
+  adminAuditLogs(
+    userId: "OPTIONAL_USER_UUID"
+    action: "LOGIN_SUCCESS"
+    limit: 20
+  ) {
+    id
+    userId
+    action
+    metadata
+    ipAddress
+    insertedAt
+  }
+}
+
+# ============================================
+# ADMIN MUTATIONS
+# ============================================
+
+# 5. Create User (use lowercase enums!)
+mutation {
+  adminCreateUser(input: {
+    email: "newuser@example.com"
+    password: "SecurePass123!"
+    passwordConfirmation: "SecurePass123!"
+    firstName: "John"
+    lastName: "Doe"
+    phone: "+1234567890"
+    country: "USA"
+    city: "New York"
+    role: user
+    status: active
+  }) {
+    user {
+      id
+      email
+      role
+      status
+    }
+    message
+  }
+}
+
+# 6. Create Admin User
+mutation {
+  adminCreateUser(input: {
+    email: "newadmin@example.com"
+    password: "AdminPass123!"
+    passwordConfirmation: "AdminPass123!"
+    firstName: "Admin"
+    lastName: "User"
+    phone: "+9876543210"
+    country: "USA"
+    city: "Boston"
+    role: admin
+    status: active
+  }) {
+    user {
+      id
+      email
+      role
+      status
+    }
+    message
+  }
+}
+
+# 7. Update User
+mutation {
+  adminUpdateUser(
+    id: "USER_UUID_HERE"
+    input: {
+      status: suspended
+      role: admin
+    }
+  ) {
+    user {
+      id
+      email
+      role
+      status
+    }
+    message
+  }
+}
+
+# 8. Delete User (Soft Delete)
+mutation {
+  adminDeleteUser(id: "USER_UUID_HERE") {
+    message
+  }
+}
+
+# 9. Validate User (Activate Pending User)
+mutation {
+  adminValidateUser(id: "USER_UUID_HERE") {
+    user {
+      id
+      email
+      status
+    }
+    message
+  }
+}
+
+# 10. Process Deletion Request
+mutation {
+  adminProcessDeletionRequest(
+    id: "USER_UUID_HERE"
+    action: approve
+  ) {
+    message
+  }
+}
+
+# Reject deletion request
+mutation {
+  adminProcessDeletionRequest(
+    id: "USER_UUID_HERE"
+    action: reject
+  ) {
+    message
+  }
+}
+
+# ============================================
+# IMPORTANT NOTES
+# ============================================
+
+# ✅ Always use LOWERCASE enum values:
+#    - role: user, admin, super_admin (NOT USER, ADMIN)
+#    - status: active, pending_verification, suspended, deletion_requested (NOT ACTIVE)
+#    - action: approve, reject (NOT APPROVE, REJECT)
+#    - sortBy: inserted_at, last_login_at, email
+#    - sortOrder: asc, desc
+
+# ✅ All admin operations require JWT token in header:
+#    Authorization: Bearer YOUR_ADMIN_TOKEN_HERE
+
+# ✅ Admin login flow:
+#    1. login(email, password) → Get OTP
+#    2. Check email for 6-digit code
+#    3. verifyOtp(code) → Get JWT token
+#    4. Use token in Authorization header

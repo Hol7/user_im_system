@@ -23,18 +23,26 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AdminResolver do
 
   def create_user(_parent, _args, _resolution), do: {:error, "Unauthorized"}
 
-  # LIST USERS (with Relay pagination)
+  # LIST USERS (with pagination)
   def list_users(_parent, args, %{context: %{current_user: user}}) do
     with true <- user.role in [:admin, :super_admin] || {:error, :forbidden} do
-      query =
+      limit = args[:limit] || 50
+      offset = args[:offset] || 0
+
+      users =
         User
         |> preload(:profile)
         |> maybe_filter_by_status(args[:status])
         |> maybe_filter_by_role(args[:role])
         |> maybe_search(args[:search])
         |> maybe_sort(args[:sort_by], args[:sort_order])
+        |> limit(^limit)
+        |> offset(^offset)
+        |> Repo.all()
 
-      {:ok, Absinthe.Relay.Connection.from_query(query, &Repo.all/1, args)}
+      {:ok, users}
+    else
+      {:error, :forbidden} -> {:error, "Forbidden"}
     end
   end
 

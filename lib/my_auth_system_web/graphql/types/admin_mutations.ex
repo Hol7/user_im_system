@@ -54,8 +54,8 @@ defmodule MyAuthSystemWeb.GraphQL.Types.AdminMutations do
   end
 
   enum :deletion_action do
-    value(:approve)
-    value(:reject)
+    value(:APPROVE, as: :approve)
+    value(:REJECT, as: :reject)
   end
 
   object :admin_user_payload do
