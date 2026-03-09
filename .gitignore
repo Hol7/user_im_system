@@ -27,6 +27,8 @@ erl_crash.dump
 /.RUN_APP.md/
 *.RUN_APP.md
 
+
+
 # Temporary files, for example, from tests.
 /tmp/
 
@@ -51,3 +53,11 @@ AGENTS.md
 .query_test.txt
 *.query_test.txt
 /.query_test.txt/
+
+COMPLETE_VERIFICATION_GUIDE.md
+FIXES_SUMMARY.md
+GRAPHQL_TYPES_REVIEW.md
+README_GRAPHIQL.md
+RESTART_SERVER_GUIDE.md
+ROUTE_TEST_RESULTS.md
+RUN_APP.md

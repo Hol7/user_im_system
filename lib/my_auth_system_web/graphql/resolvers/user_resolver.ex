@@ -13,7 +13,9 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.UserResolver do
       when not is_nil(user) do
     case Accounts.update_profile(user, input) do
       {:ok, profile} -> {:ok, %{profile: profile, message: "Profile updated"}}
-      {:error, changeset} -> {:error, format_errors(changeset)}
+      {:error, %Ecto.Changeset{} = changeset} -> {:error, format_errors(changeset)}
+      {:error, reason} when is_atom(reason) -> {:error, Atom.to_string(reason)}
+      {:error, reason} -> {:error, inspect(reason)}
     end
   end
 
@@ -24,7 +26,9 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.UserResolver do
   def request_deletion(_parent, _args, %{context: %{current_user: user}}) when not is_nil(user) do
     case Accounts.request_account_deletion(user) do
       {:ok, _user} -> {:ok, %{message: "Account deletion requested. You have 30 days to cancel."}}
-      {:error, changeset} -> {:error, format_errors(changeset)}
+      {:error, %Ecto.Changeset{} = changeset} -> {:error, format_errors(changeset)}
+      {:error, reason} when is_atom(reason) -> {:error, Atom.to_string(reason)}
+      {:error, reason} -> {:error, inspect(reason)}
     end
   end
 
@@ -33,10 +37,14 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.UserResolver do
   end
 
   defp format_errors(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->
       Enum.reduce(opts, msg, fn {key, value}, acc ->
         String.replace(acc, "%{#{key}}", to_string(value))
       end)
+    end)
+    |> Enum.flat_map(fn {field, messages} ->
+      Enum.map(messages, fn message -> "#{field} #{message}" end)
     end)
   end
 end

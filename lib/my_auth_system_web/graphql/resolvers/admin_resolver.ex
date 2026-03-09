@@ -5,7 +5,6 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AdminResolver do
   alias MyAuthSystem.Accounts.User
   import Ecto.Query
 
-
   @doc """
   Mutation: adminCreateUser(input: AdminUserInput!)
   Seul un super_admin peut créer un autre admin.
@@ -16,14 +15,13 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AdminResolver do
       {:ok, %{user: user}}
     else
       {:error, :forbidden} -> {:error, "Only admins can create admin accounts"}
-      {:error, changeset} -> {:error, format_errors(changeset)}
+      {:error, %Ecto.Changeset{} = changeset} -> {:error, format_errors(changeset)}
+      {:error, reason} when is_atom(reason) -> {:error, Atom.to_string(reason)}
+      {:error, reason} -> {:error, inspect(reason)}
     end
   end
 
   def create_user(_parent, _args, _resolution), do: {:error, "Unauthorized"}
-
-
-
 
   # LIST USERS (with Relay pagination)
   def list_users(_parent, args, %{context: %{current_user: user}}) do
@@ -59,7 +57,9 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AdminResolver do
       {:ok, %{user: user, message: "User updated successfully"}}
     else
       {:error, :forbidden} -> {:error, "Forbidden"}
-      {:error, changeset} -> {:error, format_errors(changeset)}
+      {:error, %Ecto.Changeset{} = changeset} -> {:error, format_errors(changeset)}
+      {:error, reason} when is_atom(reason) -> {:error, Atom.to_string(reason)}
+      {:error, reason} -> {:error, inspect(reason)}
     end
   end
 
@@ -93,6 +93,7 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AdminResolver do
         |> where([u], u.status == ^:deletion_requested)
         |> preload(:profile)
         |> Repo.all()
+
       {:ok, users}
     end
   end
@@ -113,7 +114,9 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AdminResolver do
   end
 
   # AUDIT LOGS
-  def list_audit_logs(_parent, %{user_id: user_id, action: action, limit: limit}, %{context: %{current_user: admin}}) do
+  def list_audit_logs(_parent, %{user_id: user_id, action: action, limit: limit}, %{
+        context: %{current_user: admin}
+      }) do
     with true <- admin.role in [:admin, :super_admin] || {:error, :forbidden} do
       logs =
         MyAuthSystem.Audit.Log
@@ -122,6 +125,7 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AdminResolver do
         |> order_by(desc: :inserted_at)
         |> limit(^limit)
         |> Repo.all()
+
       {:ok, logs}
     end
   end
@@ -134,11 +138,10 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AdminResolver do
   defp maybe_filter_by_role(query, role), do: where(query, [u], u.role == ^role)
 
   defp maybe_search(query, nil), do: query
+
   defp maybe_search(query, term) do
     search_term = "%#{String.downcase(term)}%"
-    where(query, [u],
-      ilike(u.email, ^search_term)
-    )
+    where(query, [u], ilike(u.email, ^search_term))
   end
 
   defp maybe_sort(query, :inserted_at, :desc), do: order_by(query, [u], desc: u.inserted_at)
@@ -154,11 +157,14 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AdminResolver do
   defp maybe_filter_by_action(query, action), do: where(query, [l], l.action == ^action)
 
   defp format_errors(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->
       Enum.reduce(opts, msg, fn {key, value}, acc ->
         String.replace(acc, "%{#{key}}", to_string(value))
       end)
     end)
+    |> Enum.flat_map(fn {field, messages} ->
+      Enum.map(messages, fn message -> "#{field} #{message}" end)
+    end)
   end
-
 end

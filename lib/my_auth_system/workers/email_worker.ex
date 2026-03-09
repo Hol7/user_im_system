@@ -14,9 +14,18 @@ defmodule MyAuthSystem.Workers.EmailWorker do
     end
   end
 
-  def perform(%Oban.Job{args: %{"type" => "welcome", "email" => _email, "name" => _name}}) do
-    # Implémenter email de bienvenue si besoin
-    :ok
+  def perform(%Oban.Job{
+        args: %{"type" => "welcome", "email" => email, "name" => name, "otp" => otp}
+      }) do
+    case MyAuthSystem.Notifications.Brevo.send_verification_email(email, name, otp) do
+      {:ok, _response} ->
+        Logger.info("Verification email sent to #{email}")
+        :ok
+
+      {:error, error} ->
+        Logger.error("Failed to send verification email: #{inspect(error)}")
+        {:retry, error}
+    end
   end
 
   def perform(%Oban.Job{

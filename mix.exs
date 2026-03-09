@@ -76,6 +76,9 @@ defmodule MyAuthSystem.MixProject do
       # Rate Limiting sans Redis
       # {:plug_rate_limit, "~> 1.0"},
 
+      # Environment variables
+      {:dotenvy, "~> 0.8.0"},
+
       # Async Jobs & Emails (Remplace Redis par Postgres)
       {:oban, "~> 2.19"},
       {:oban_web, "~> 2.11"},

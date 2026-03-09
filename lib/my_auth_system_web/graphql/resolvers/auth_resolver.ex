@@ -29,7 +29,9 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
       {:ok, %{user: user, token: nil, message: "Verification email sent"}}
     else
       {:error, %Ecto.Changeset{} = changeset} -> {:error, format_errors(changeset)}
-      error -> error
+      {:error, reason} when is_atom(reason) -> {:error, Atom.to_string(reason)}
+      {:error, reason} -> {:error, inspect(reason)}
+      error -> {:error, inspect(error)}
     end
   end
 
@@ -41,15 +43,22 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
     otp_plain_code = generate_otp_code()
 
     with {:ok, user} <- Auth.authenticate(email, password),
+         user <- Repo.preload(user, :profile),
          true <- user.status in [:active, :pending_verification] || {:error, :account_inactive},
          otp <- Otp.generate_otp_with_code(user.id, :login, otp_plain_code),
          # ✅ KEPT: This one IS used below
          {:ok, saved_otp} <- Repo.insert(otp) do
       # Send OTP email async
+      name =
+        case user.profile do
+          %{first_name: first_name} when is_binary(first_name) and first_name != "" -> first_name
+          _ -> "User"
+        end
+
       EmailWorker.new(%{
         type: "otp",
         email: user.email,
-        name: user.profile.first_name || "User",
+        name: name,
         otp: otp_plain_code
       })
       |> Oban.insert()
@@ -59,7 +68,10 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
     else
       {:error, :invalid_credentials} -> {:error, "Invalid email or password"}
       {:error, :account_inactive} -> {:error, "Account is not active"}
-      error -> error
+      {:error, %Ecto.Changeset{} = changeset} -> {:error, format_errors(changeset)}
+      {:error, reason} when is_atom(reason) -> {:error, Atom.to_string(reason)}
+      {:error, reason} -> {:error, inspect(reason)}
+      error -> {:error, inspect(error)}
     end
   end
 
@@ -67,25 +79,30 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
   Mutation: verifyOtp(otpId: ID!, code: String!)
   """
   def verify_otp(_parent, %{otp_id: otp_id, code: code}, _resolution) do
-    with {:ok, otp} <- Repo.get(Otp, otp_id) |> Repo.preload(:user) |> validate_otp(),
-         {:ok, :valid} <- Otp.verify_otp(otp, code),
-         {:ok, tokens} <- Auth.generate_tokens(otp.user) do
-      # Mark OTP as used
-      otp
-      |> Ecto.Changeset.change(used: true)
-      |> Repo.update()
+    try do
+      with {:ok, otp} <- Repo.get(Otp, otp_id) |> Repo.preload(:user) |> validate_otp(),
+           {:ok, :valid} <- Otp.verify_otp(otp, code),
+           {:ok, tokens} <- Auth.generate_tokens(otp.user) do
+        # Mark OTP as used
+        otp
+        |> Ecto.Changeset.change(used: true)
+        |> Repo.update()
 
-      # Log the action
-      MyAuthSystem.Audit.Log.log_async(
-        otp.user_id,
-        "LOGIN_SUCCESS",
-        %{method: "otp"},
-        nil
-      )
+        # Log the action
+        MyAuthSystem.Audit.Log.log_async(
+          otp.user_id,
+          "LOGIN_SUCCESS",
+          %{method: "otp"},
+          nil
+        )
 
-      {:ok, %{user: otp.user, token: tokens.access_token, refresh_token: tokens.refresh_token}}
-    else
-      {:error, reason} -> {:error, "Invalid or expired OTP: #{inspect(reason)}"}
+        {:ok, %{user: otp.user, token: tokens.access_token, refresh_token: tokens.refresh_token}}
+      else
+        {:error, _reason} -> {:error, "Invalid or expired OTP"}
+      end
+    rescue
+      Ecto.Query.CastError -> {:error, "Invalid OTP ID format"}
+      _ -> {:error, "Invalid or expired OTP"}
     end
   end
 
@@ -146,7 +163,14 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
   def refresh_token(_parent, %{refresh_token: token}, _resolution) do
     case Auth.refresh_token(token) do
       {:ok, user, new_access_token, new_refresh_token} ->
-        {:ok, %{user: user, token: new_access_token, refresh_token: new_refresh_token, message: "Token refreshed"}}
+        {:ok,
+         %{
+           user: user,
+           token: new_access_token,
+           refresh_token: new_refresh_token,
+           message: "Token refreshed"
+         }}
+
       {:error, message} ->
         {:error, message}
     end
@@ -155,7 +179,7 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
   # === PRIVATE HELPERS ===
 
   defp generate_otp_code do
-    :crypto.strong_rand_bytes(3)
+    :crypto.strong_rand_bytes(6)
     |> :binary.bin_to_list()
     |> Enum.map(&rem(&1, 10))
     |> Enum.join()
@@ -165,10 +189,14 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
   defp validate_otp(otp), do: {:ok, otp}
 
   defp format_errors(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->
       Enum.reduce(opts, msg, fn {key, value}, acc ->
         String.replace(acc, "%{#{key}}", to_string(value))
       end)
+    end)
+    |> Enum.flat_map(fn {field, messages} ->
+      Enum.map(messages, fn message -> "#{field} #{message}" end)
     end)
   end
 end

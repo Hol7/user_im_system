@@ -2,7 +2,7 @@ defmodule MyAuthSystemWeb.Router do
   use MyAuthSystemWeb, :router
 
   pipeline :browser do
-    plug :accepts, ["html"]
+    plug :accepts, ["html", "json"]
     plug :fetch_session
     plug :fetch_flash
     plug :protect_from_forgery
@@ -18,78 +18,27 @@ defmodule MyAuthSystemWeb.Router do
       window_ms: 60_000,
       key_extractor: &MyAuthSystemWeb.Plugs.RateLimit.get_ip/1
 
-    plug Guardian.Plug.VerifyHeader, realm: "Bearer", optional: true
-    plug Guardian.Plug.LoadResource, optional: true
     plug MyAuthSystemWeb.Plugs.GraphQLAuth
   end
 
   pipeline :graphql_playground do
-    plug :accepts, ["json"]
-    plug Guardian.Plug.VerifyHeader, realm: "Bearer", optional: true
-    plug Guardian.Plug.LoadResource, optional: true
+    plug :accepts, ["html", "json"]
+    plug :fetch_session
     plug MyAuthSystemWeb.Plugs.GraphQLAuth
   end
 
-  # === GRAPHQL ENDPOINT ===
-  scope "/api", MyAuthSystemWeb do
-    pipe_through :api
-
-    forward "/graphql", Absinthe.Plug,
-      schema: MyAuthSystemWeb.GraphQL.Schema,
-      context: %{pubsub: MyAuthSystem.PubSub}
-  end
-
-  # === GRAPHIQL PLAYGROUND (Dev Only) ===
-  if Mix.env() in [:dev, :test] do
-    scope "/" do
-      pipe_through [:browser]
-      forward "/oban", ObanWeb.Plug
-    end
-
-    scope "/api", MyAuthSystemWeb do
-      pipe_through :graphql_playground
-
-      forward "/graphiql", Absinthe.Plug.GraphiQL,
-        schema: MyAuthSystemWeb.GraphQL.Schema,
-        interface: :playground,
-        default_url: "/api/graphql"
-    end
-  end
-
   # === API ENDPOINTS ===
-  scope "/api", MyAuthSystemWeb do
+  scope "/api" do
     pipe_through :api
 
-    # GraphQL principal (avec auth)
+    # GraphQL principal
     forward "/graphql", Absinthe.Plug,
       schema: MyAuthSystemWeb.GraphQL.Schema,
       context: %{pubsub: MyAuthSystem.PubSub}
 
     # Upload endpoint
-    post "/upload/avatar", UploadController, :upload_avatar
+    post "/upload/avatar", MyAuthSystemWeb.UploadController, :upload_avatar
   end
-
-  # === GRAPHIQL PLAYGROUND (Dev uniquement) [[web_extractor]]
-  if Mix.env() in [:dev, :test] do
-    scope "/api", MyAuthSystemWeb do
-      pipe_through :graphql_playground
-
-      forward "/graphiql", Absinthe.Plug.GraphiQL,
-        schema: MyAuthSystemWeb.GraphQL.Schema,
-        # Options: :advanced, :simple, :playground
-        interface: :playground,
-        default_url: "/api/graphql",
-        socket_url: "/socket",
-        default_headers: {__MODULE__, :graphiql_headers}
-    end
-  end
-
-  # === UPLOAD ENDPOINT ===
-  scope "/api", MyAuthSystemWeb do
-    pipe_through :api
-    post "/upload/avatar", UploadController, :upload_avatar
-  end
-
 
   # === PUBLIC AUTH ROUTES (REST fallback) ===
   # Commented out - using GraphQL API instead
@@ -126,8 +75,18 @@ defmodule MyAuthSystemWeb.Router do
   #   end
   # end
 
-  # === OBAN DASHBOARD ===
   if Mix.env() in [:dev, :test] do
+    # === GRAPHIQL PLAYGROUND ===
+    scope "/api" do
+      pipe_through :graphql_playground
+
+      forward "/graphiql", Absinthe.Plug.GraphiQL,
+        schema: MyAuthSystemWeb.GraphQL.Schema,
+        interface: :playground,
+        default_url: "/api/graphql"
+    end
+
+    # === OBAN DASHBOARD ===
     scope "/" do
       pipe_through [:browser]
       import Oban.Web.Router
@@ -145,25 +104,15 @@ defmodule MyAuthSystemWeb.Router do
   #   plug MyAuthSystemWeb.GraphQL.Middleware.RequireRole, [:admin, :super_admin]
   # end
 
-  # scope "/api", MyAuthSystemWeb do
-  #   pipe_through :api
+  # Fallback for all unmatched routes
+  scope "/", MyAuthSystemWeb do
+    pipe_through :browser
 
-  #   # GraphQL endpoint
-  #   forward "/graphql", Absinthe.Plug,
-  #     schema: MyAuthSystemWeb.GraphQL.Schema,
-  #     context: %{pubsub: MyAuthSystem.PubSub}
+    get "/", PageController, :home
 
-  #   # Upload endpoint (REST car GraphQL n'est pas idéal pour les fichiers)
-  #   post "/upload/avatar", UploadController, :upload_avatar
-  # end
-
-  # scope "/api", MyAuthSystemWeb do
-  #   # Routes publiques (pas d'auth requise)
-  #   post "/auth/register", AuthController, :register
-  #   post "/auth/login", AuthController, :login_request
-  #   post "/auth/verify-otp", AuthController, :verify_otp
-  #   post "/auth/refresh", AuthController, :refresh_token
-  # end
+    # Catch-all for any unmatched routes (handles both JSON and HTML via content negotiation)
+    match :*, "/*path", PageController, :not_found
+  end
 
   # Enable Swoosh mailbox preview in development
   if Application.compile_env(:my_auth_system, :dev_routes) do

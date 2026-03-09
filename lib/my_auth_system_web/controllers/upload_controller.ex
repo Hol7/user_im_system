@@ -46,7 +46,6 @@ defmodule MyAuthSystemWeb.UploadController do
          :ok <- validate_file_type(upload),
          {:ok, filename} <- save_file(upload),
          {:ok, profile} <- update_user_avatar(user, filename) do
-
       conn
       |> put_status(:ok)
       |> json(%{
@@ -83,7 +82,7 @@ defmodule MyAuthSystemWeb.UploadController do
         |> json(%{
           success: false,
           error: "Validation failed",
-          details: Ecto.Changeset.traverse_errors(changeset, &(&1))
+          details: Ecto.Changeset.traverse_errors(changeset, & &1)
         })
 
       _ ->

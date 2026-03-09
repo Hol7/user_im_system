@@ -2,7 +2,7 @@ defmodule MyAuthSystemWeb.GraphQL.Types.AdminQueries do
   use Absinthe.Schema.Notation
   use Absinthe.Relay.Schema.Notation, :modern
 
-  import_types Absinthe.Type.Custom
+  import_types(Absinthe.Type.Custom)
 
   object :admin_queries do
     # List users with filtering/pagination

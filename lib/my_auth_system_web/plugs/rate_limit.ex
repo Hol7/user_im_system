@@ -111,11 +111,4 @@ defmodule MyAuthSystemWeb.Plugs.RateLimit do
     # Lancer un processus pour le cleanup périodique (optionnel)
     # Task.start_link(fn -> cleanup_loop() end)
   end
-
-  # Loop de cleanup toutes les 5 minutes (optionnel pour production)
-  defp cleanup_loop do
-    :timer.sleep(:timer.minutes(5))
-    cleanup_old_entries(System.system_time(:millisecond) - @default_window)
-    cleanup_loop()
-  end
 end

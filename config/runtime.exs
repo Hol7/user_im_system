@@ -1,12 +1,17 @@
 # config/runtime.exs
 import Config
 
+# Load .env file in development
+if config_env() == :dev do
+  Dotenvy.source!(".env")
+end
+
 # Only load runtime config if we're not in test mode (tests have their own setup)
 if config_env() != :test do
   # === DATABASE ===
   config :my_auth_system, MyAuthSystem.Repo,
-    username: System.get_env("DB_USERNAME", "postgres"),
-    password: System.get_env("DB_PASSWORD", "postgres"),
+    username: System.get_env("DB_USERNAME") || System.get_env("USER") || "postgres",
+    password: System.get_env("DB_PASSWORD", ""),
     database: System.get_env("DB_NAME", "my_auth_system_dev"),
     hostname: System.get_env("DB_HOST", "localhost"),
     port: String.to_integer(System.get_env("DB_PORT", "5432")),
@@ -22,10 +27,14 @@ if config_env() != :test do
   # === GUARDIAN (JWT) ===
   guardian_secret_key =
     System.get_env("GUARDIAN_SECRET_KEY") ||
-      raise """
-      environment variable GUARDIAN_SECRET_KEY is missing.
-      You can generate one by running: mix phoenix.gen.secret
-      """
+      if config_env() == :prod do
+        raise """
+        environment variable GUARDIAN_SECRET_KEY is missing.
+        You can generate one by running: mix phx.gen.secret
+        """
+      else
+        "dev_guardian_secret_key_change_me_before_prod"
+      end
 
   config :my_auth_system, Guardian,
     issuer: "my_auth_system",
@@ -36,6 +45,13 @@ if config_env() != :test do
     verify_module: Guardian.JWT,
     permission: %{default: [:read, :write]},
     token_module: MyAuthSystem.Auth.GuardianToken
+
+  # === BREVO (Email) ===
+  # Must be loaded AFTER Dotenvy sources .env file
+  config :my_auth_system, :brevo,
+    api_key: System.get_env("BREVO_API_KEY"),
+    sender_name: System.get_env("BREVO_SENDER_NAME", "MyAuth System"),
+    sender_email: System.get_env("BREVO_SENDER_EMAIL", "noreply@myauthsystem.com")
 
   # === OBAN ===
   config :my_auth_system, Oban,
@@ -51,12 +67,6 @@ if config_env() != :test do
       uploads: 3
     ]
 
-  # === BREVO (Email) ===
-  config :my_auth_system, :brevo,
-    api_key: System.get_env("BREVO_API_KEY"),
-    sender_name: System.get_env("BREVO_SENDER_NAME", "MyAuth System"),
-    sender_email: System.get_env("BREVO_SENDER_EMAIL", "noreply@myauthsystem.com")
-
   # === ENDPOINT (Runtime overrides) ===
   config :my_auth_system, MyAuthSystemWeb.Endpoint,
     http: [
@@ -64,13 +74,16 @@ if config_env() != :test do
     ],
     secret_key_base:
       System.get_env("SECRET_KEY_BASE") ||
-        raise("""
-        environment variable SECRET_KEY_BASE is missing.
-        You can generate one by running: mix phx.gen.secret
-        """),
+        (if config_env() == :prod do
+           raise("""
+           environment variable SECRET_KEY_BASE is missing.
+           You can generate one by running: mix phx.gen.secret
+           """)
+         else
+           "dev_secret_key_base_change_me_before_prod_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+         end),
     check_origin: if(config_env() == :prod, do: ["//myauthsystem.com"], else: false),
-    force_ssl:
-      [hsts: true] |> then(fn opts -> if config_env() == :prod, do: opts, else: [] end)
+    force_ssl: [hsts: true] |> then(fn opts -> if config_env() == :prod, do: opts, else: [] end)
 
   # === UPLOAD PATH ===
   config :my_auth_system,
@@ -95,15 +108,6 @@ if config_env() == :prod do
     url: [host: System.get_env("APP_HOST", "myauthsystem.com"), port: 443],
     cache_static_manifest: "priv/static/cache_manifest.json"
 end
-
-# import Config
-
-# # config/runtime.exs is executed for all environments, including
-# # during releases. It is executed after compilation and before the
-# # system starts, so it is typically used to load production configuration
-# # and secrets from environment variables or elsewhere. Do not define
-# # any compile-time configuration in here, as it won't be applied.
-# # The block below contains prod specific runtime configuration.
 
 # # ## Using releases
 # #

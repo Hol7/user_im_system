@@ -1,0 +1,388 @@
+# ========================================
+# GraphQL API - Example Queries & Mutations
+# ========================================
+# Copy and paste these into GraphiQL playground
+# GraphiQL URL: http://localhost:4000/api/graphiql
+# ========================================
+
+# ========================================
+# PUBLIC OPERATIONS (No Authentication)
+# ========================================
+
+# 1. Health Check
+# Test if API is running
+query HealthCheck {
+  health
+}
+
+# 2. Register New Account
+# Creates user account and sends verification email with 6-digit OTP
+mutation RegisterUser {
+  register(input: {
+    email: "test@example.com"
+    password: "SecurePass123!"
+    passwordConfirmation: "SecurePass123!"
+    firstName: "John"
+    lastName: "Doe"
+    phone: "+1234567890"
+    country: "USA"
+    city: "New York"
+    district: "Manhattan"
+  }) {
+    user {
+      id
+      email
+      status
+      role
+    }
+    message
+  }
+}
+
+# 3. Verify Email with OTP
+# Use the 6-digit code from email + otpId from database
+mutation VerifyEmail {
+  verifyOtp(
+    otpId: "PUT_OTP_ID_HERE"
+    code: "123456"
+  ) {
+    user {
+      id
+      email
+      status
+      profile {
+        firstName
+        lastName
+      }
+    }
+    token
+    refreshToken
+  }
+}
+
+# 4. Login (Step 1 - Get OTP)
+# Login with email/password, OTP sent to email
+mutation LoginStep1 {
+  login(
+    email: "test@example.com"
+    password: "SecurePass123!"
+  ) {
+    message
+    otpId
+  }
+}
+
+# 5. Login (Step 2 - Verify OTP)
+# Use otpId from step 1 and code from email
+# This is the SAME as VerifyEmail mutation above
+mutation LoginStep2 {
+  verifyOtp(
+    otpId: "PUT_OTP_ID_FROM_LOGIN_HERE"
+    code: "123456"
+  ) {
+    user {
+      id
+      email
+      status
+    }
+    token
+    refreshToken
+  }
+}
+
+# 6. Request Password Reset
+# Sends OTP code to email for password reset
+mutation RequestPasswordReset {
+  requestPasswordReset(email: "test@example.com") {
+    message
+  }
+}
+
+# 7. Reset Password with OTP
+# Use OTP code from email to reset password
+mutation ResetPassword {
+  resetPassword(
+    otpId: "PUT_OTP_ID_HERE"
+    code: "123456"
+    newPassword: "NewSecurePass123!"
+    newPasswordConfirmation: "NewSecurePass123!"
+  ) {
+    message
+  }
+}
+
+# 8. Refresh Access Token
+# Get new access token using refresh token
+mutation RefreshToken {
+  refreshToken(refreshToken: "YOUR_REFRESH_TOKEN_HERE") {
+    user {
+      id
+      email
+    }
+    token
+    refreshToken
+    message
+  }
+}
+
+# ========================================
+# PROTECTED USER OPERATIONS
+# Requires JWT token in HTTP Headers:
+# Authorization: Bearer YOUR_JWT_TOKEN
+# ========================================
+
+# 9. Get Current User Profile
+query GetMyProfile {
+  me {
+    id
+    email
+    role
+    status
+    lastLoginAt
+    emailVerifiedAt
+    profile {
+      id
+      firstName
+      lastName
+      phone
+      country
+      city
+      district
+      avatarUrl
+    }
+  }
+}
+
+# 10. Update Profile
+mutation UpdateMyProfile {
+  updateProfile(input: {
+    firstName: "Jane"
+    lastName: "Smith"
+    phone: "+9876543210"
+    country: "Canada"
+    city: "Toronto"
+    district: "Downtown"
+  }) {
+    profile {
+      firstName
+      lastName
+      phone
+      city
+    }
+    message
+  }
+}
+
+# 11. Request Account Deletion
+mutation RequestAccountDeletion {
+  requestAccountDeletion {
+    message
+  }
+}
+
+# ========================================
+# ADMIN OPERATIONS
+# Requires JWT token with ADMIN or SUPER_ADMIN role
+# ========================================
+
+# 12. List All Users (Admin)
+query ListUsers {
+  adminUsers(
+    status: ACTIVE
+    role: USER
+    search: "john"
+    sortBy: INSERTED_AT
+    sortOrder: DESC
+    first: 10
+  ) {
+    id
+    email
+    role
+    status
+    lastLoginAt
+    profile {
+      firstName
+      lastName
+      phone
+    }
+  }
+}
+
+# 13. Create User (Admin)
+mutation AdminCreateUser {
+  adminCreateUser(input: {
+    email: "newuser@example.com"
+    password: "SecurePass123!"
+    passwordConfirmation: "SecurePass123!"
+    firstName: "Admin"
+    lastName: "Created"
+    phone: "+1111111111"
+    country: "USA"
+    city: "Boston"
+    role: USER
+    status: ACTIVE
+  }) {
+    user {
+      id
+      email
+      role
+      status
+    }
+    message
+  }
+}
+
+# 14. Update User (Admin)
+mutation AdminUpdateUser {
+  adminUpdateUser(
+    userId: "USER_ID_HERE"
+    input: {
+      status: SUSPENDED
+      role: ADMIN
+    }
+  ) {
+    user {
+      id
+      email
+      role
+      status
+    }
+    message
+  }
+}
+
+# 15. Delete User (Admin)
+mutation AdminDeleteUser {
+  adminDeleteUser(userId: "USER_ID_HERE") {
+    message
+  }
+}
+
+# 16. Validate User (Admin)
+mutation AdminValidateUser {
+  adminValidateUser(userId: "USER_ID_HERE") {
+    user {
+      id
+      email
+      status
+    }
+    message
+  }
+}
+
+# 17. Process Deletion Request (Admin)
+mutation AdminProcessDeletion {
+  adminProcessDeletionRequest(
+    userId: "USER_ID_HERE"
+    action: APPROVE
+  ) {
+    message
+  }
+}
+
+# 18. List Deletion Requests (Admin)
+query ListDeletionRequests {
+  adminDeletionRequests {
+    id
+    email
+    status
+    profile {
+      firstName
+      lastName
+    }
+  }
+}
+
+# 19. List Audit Logs (Admin)
+query ListAuditLogs {
+  adminAuditLogs(
+    userId: "OPTIONAL_USER_ID"
+    action: "LOGIN_SUCCESS"
+    limit: 50
+  ) {
+    id
+    userId
+    action
+    metadata
+    insertedAt
+  }
+}
+
+# ========================================
+# HELPER QUERIES
+# ========================================
+
+# Get Schema Introspection (see all available types)
+query IntrospectionQuery {
+  __schema {
+    types {
+      name
+      kind
+      description
+    }
+  }
+}
+
+# Get Available Queries
+query AvailableQueries {
+  __schema {
+    queryType {
+      fields {
+        name
+        description
+        args {
+          name
+          type {
+            name
+          }
+        }
+      }
+    }
+  }
+}
+
+# Get Available Mutations
+query AvailableMutations {
+  __schema {
+    mutationType {
+      fields {
+        name
+        description
+        args {
+          name
+          type {
+            name
+          }
+        }
+      }
+    }
+  }
+}
+
+# ========================================
+# NOTES
+# ========================================
+# 
+# OTP Codes:
+# - OTP codes are 6 digits (e.g., "123456")
+# - Valid for 1 hour (60 minutes)
+# - Single use only
+# - Check your email for the code
+#
+# Getting OTP ID:
+# Run this in terminal to get the latest OTP ID:
+# psql -U bititi -d my_auth_system_dev -c "SELECT o.id, o.purpose FROM otps o JOIN users u ON u.id = o.user_id WHERE u.email = 'YOUR_EMAIL' AND o.used = false ORDER BY o.inserted_at DESC LIMIT 1;"
+#
+# JWT Authentication:
+# After login/verification, add this header to GraphiQL:
+# {
+#   "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
+# }
+#
+# Enums:
+# - UserRole: USER, ADMIN, SUPER_ADMIN
+# - UserStatus: ACTIVE, PENDING_VERIFICATION, SUSPENDED, DELETION_REQUESTED
+# - DeletionAction: APPROVE, REJECT
+# - UserSortField: INSERTED_AT, LAST_LOGIN_AT, EMAIL
+# - SortOrder: ASC, DESC
+#

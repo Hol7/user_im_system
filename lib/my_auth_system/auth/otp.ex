@@ -24,7 +24,10 @@ defmodule MyAuthSystem.Auth.Otp do
   Use this when you need to send the code via email before storing.
   """
   def generate_otp_with_code(user_id, purpose, plain_code) do
-    expires_at = DateTime.add(DateTime.utc_now(), 5, :minute)
+    expires_at =
+      DateTime.utc_now()
+      |> DateTime.add(60, :minute)
+      |> DateTime.truncate(:second)
 
     %__MODULE__{
       user_id: user_id,
@@ -43,7 +46,7 @@ defmodule MyAuthSystem.Auth.Otp do
   end
 
   defp generate_random_code do
-    :crypto.strong_rand_bytes(3)
+    :crypto.strong_rand_bytes(6)
     |> :binary.bin_to_list()
     |> Enum.map(&rem(&1, 10))
     |> Enum.join()

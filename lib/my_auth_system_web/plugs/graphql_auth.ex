@@ -9,13 +9,23 @@ defmodule MyAuthSystemWeb.Plugs.GraphQLAuth do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    current_user = Guardian.Plug.current_resource(conn)
+    current_user = current_user_from_authorization(conn)
 
-    # Add user to GraphQL context via conn assigns
-    conn
-    |> assign(:graphql_context, %{
-      current_user: current_user,
-      pubsub: MyAuthSystem.PubSub
-    })
+    Absinthe.Plug.put_options(conn,
+      context: %{
+        current_user: current_user,
+        pubsub: MyAuthSystem.PubSub
+      }
+    )
+  end
+
+  defp current_user_from_authorization(conn) do
+    with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
+         {:ok, claims} <- MyAuthSystem.Auth.GuardianToken.decode_and_verify(token),
+         {:ok, user} <- MyAuthSystem.Auth.GuardianToken.resource_from_claims(claims) do
+      user
+    else
+      _ -> nil
+    end
   end
 end

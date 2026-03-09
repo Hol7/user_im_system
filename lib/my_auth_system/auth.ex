@@ -89,28 +89,33 @@ defmodule MyAuthSystem.Auth do
   Reset password with OTP verification.
   """
   def reset_password(otp_id, code, new_password, new_password_confirmation) do
-    with {:ok, otp} <- Repo.get(Otp, otp_id) |> Repo.preload(:user) |> validate_otp_for_reset(),
-         {:ok, :valid} <- Otp.verify_otp(otp, code),
-         true <- new_password == new_password_confirmation || {:error, :password_mismatch},
-         {:ok, user} <- update_user_password(otp.user, new_password),
-         :ok <- mark_otp_as_used(otp),
-         :ok <- revoke_all_refresh_tokens(user.id) do
-      # Log the action
-      MyAuthSystem.Audit.Log.log_async(
-        user.id,
-        "PASSWORD_RESET",
-        %{method: "otp", otp_id: otp_id},
-        nil
-      )
+    try do
+      with {:ok, otp} <- Repo.get(Otp, otp_id) |> Repo.preload(:user) |> validate_otp_for_reset(),
+           {:ok, :valid} <- Otp.verify_otp(otp, code),
+           true <- new_password == new_password_confirmation || {:error, :password_mismatch},
+           {:ok, user} <- update_user_password(otp.user, new_password),
+           :ok <- mark_otp_as_used(otp),
+           :ok <- revoke_all_refresh_tokens(user.id) do
+        # Log the action
+        MyAuthSystem.Audit.Log.log_async(
+          user.id,
+          "PASSWORD_RESET",
+          %{method: "otp", otp_id: otp_id},
+          nil
+        )
 
-      {:ok, %{message: "Password successfully reset. Please login with your new password."}}
-    else
-      {:error, :already_used} -> {:error, "This reset code has already been used"}
-      {:error, :expired} -> {:error, "This reset code has expired. Please request a new one."}
-      {:error, :invalid} -> {:error, "Invalid reset code"}
-      {:error, :password_mismatch} -> {:error, "New passwords do not match"}
-      {:error, changeset} -> {:error, Ecto.Changeset.traverse_errors(changeset, & &1)}
-      error -> error
+        {:ok, %{message: "Password successfully reset. Please login with your new password."}}
+      else
+        {:error, :already_used} -> {:error, "This reset code has already been used"}
+        {:error, :expired} -> {:error, "This reset code has expired. Please request a new one."}
+        {:error, :invalid} -> {:error, "Invalid reset code"}
+        {:error, :password_mismatch} -> {:error, "New passwords do not match"}
+        {:error, changeset} -> {:error, Ecto.Changeset.traverse_errors(changeset, & &1)}
+        error -> error
+      end
+    rescue
+      Ecto.Query.CastError -> {:error, "Invalid reset code ID format"}
+      _ -> {:error, "Invalid or expired reset code"}
     end
   end
 
@@ -135,7 +140,10 @@ defmodule MyAuthSystem.Auth do
   end
 
   defp create_refresh_token(user_id, token_string, claims) do
-    expires_at = DateTime.add(DateTime.utc_now(), 7, :day)
+    expires_at =
+      DateTime.utc_now()
+      |> DateTime.add(7, :day)
+      |> DateTime.truncate(:second)
 
     %RefreshToken{
       user_id: user_id,
@@ -172,13 +180,25 @@ defmodule MyAuthSystem.Auth do
   end
 
   defp send_password_reset_email_async(user, otp_code) do
+    user = Repo.preload(user, :profile)
+
+    name =
+      case user.profile do
+        %{first_name: first_name} when is_binary(first_name) and first_name != "" -> first_name
+        _ -> "User"
+      end
+
     EmailWorker.new(%{
       type: "password_reset",
       email: user.email,
-      name: user.profile.first_name || "User",
+      name: name,
       otp: otp_code
     })
     |> Oban.insert()
+    |> case do
+      {:ok, _job} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   defp update_user_password(user, new_password) do
