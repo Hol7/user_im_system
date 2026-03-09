@@ -1,0 +1,54 @@
+# Git
+.git
+.gitignore
+
+# Mix artifacts
+/_build
+/deps
+*.ez
+
+# Environment files
+.env
+.env.*
+
+# Documentation
+*.md
+!README.md
+
+# Test files
+/test
+
+# Development files
+.elixir_ls
+.vscode
+.idea
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+/tmp
+/priv/static/cache
+
+# Node modules (if any)
+node_modules
+npm-debug.log
+
+# Database files
+*.db
+*.sqlite
+
+# Backup files
+*~
+*.swp
+*.swo
+
+# Coverage
+/cover
+
+# Documentation artifacts
+/doc
