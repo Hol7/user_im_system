@@ -11,6 +11,7 @@ defmodule MyAuthSystemWeb.GraphQL.Schema do
   import_types(MyAuthSystemWeb.GraphQL.Types.AdminMutations)
   import_types(MyAuthSystemWeb.GraphQL.Types.UserQueries)
   import_types(MyAuthSystemWeb.GraphQL.Types.AdminQueries)
+  import_types(MyAuthSystemWeb.GraphQL.Types.MonitoringQueries)
 
   # === QUERIES ===
   query do
@@ -24,6 +25,9 @@ defmodule MyAuthSystemWeb.GraphQL.Schema do
 
     # Import admin queries (protected by middleware in router)
     import_fields(:admin_queries)
+
+    # Import monitoring queries (admin only)
+    import_fields(:monitoring_queries)
   end
 
   # === MUTATIONS ===

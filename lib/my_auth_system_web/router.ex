@@ -98,6 +98,17 @@ defmodule MyAuthSystemWeb.Router do
         ]
       )
     end
+
+    # === LIVE DASHBOARD ===
+    import Phoenix.LiveDashboard.Router
+
+    scope "/" do
+      pipe_through [:browser]
+
+      live_dashboard "/dashboard",
+        metrics: MyAuthSystemWeb.Telemetry,
+        ecto_repos: [MyAuthSystem.Repo]
+    end
   end
 
   # pipeline :admin do

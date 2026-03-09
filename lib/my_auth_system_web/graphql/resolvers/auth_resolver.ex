@@ -231,7 +231,6 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
     |> Enum.join()
   end
 
-
   defp format_errors(changeset) do
     changeset
     |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->

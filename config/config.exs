@@ -32,12 +32,21 @@ config :logger, :default_formatter,
 config :my_auth_system, Oban,
   repo: MyAuthSystem.Repo,
   plugins: [
-    Oban.Plugins.Pruner,
+    {Oban.Plugins.Pruner,
+     max_age: 60 * 60 * 24 * 7,
+     limit: 10_000,
+     interval: :timer.minutes(30),
+     max_age_by_state: %{
+       completed: 60 * 60 * 24 * 7,
+       discarded: 60 * 60 * 24 * 30,
+       cancelled: 60 * 60 * 24 * 30
+     }},
     Oban.Plugins.Lifeline,
     {Oban.Plugins.Cron,
      crontab: [
        {"0 * * * *", MyAuthSystem.Workers.CleanupOtpWorker, args: %{older_than_hours: 1}},
-       {"0 2 * * *", MyAuthSystem.Workers.CleanupAuditLogsWorker, args: %{older_than_days: 90}}
+       {"0 2 * * *", MyAuthSystem.Workers.CleanupAuditLogsWorker, args: %{older_than_days: 90}},
+       {"0 3 * * *", MyAuthSystem.Workers.CleanupRequestLogsWorker, args: %{older_than_days: 90}}
      ]}
   ],
   queues: [

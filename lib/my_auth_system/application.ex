@@ -15,6 +15,9 @@ defmodule MyAuthSystem.Application do
     # === INITIALISATION DOSSIER UPLOAD ===
     initialize_upload_directory()
 
+    # === ATTACH TELEMETRY HANDLERS ===
+    MyAuthSystem.Monitoring.RequestLogger.attach()
+
     # === CONFIGURATION DES ENFANTS ===
     children = [
       # Telemetry pour les métriques Phoenix

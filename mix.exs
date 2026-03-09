@@ -82,6 +82,7 @@ defmodule MyAuthSystem.MixProject do
       # Async Jobs & Emails (Remplace Redis par Postgres)
       {:oban, "~> 2.19"},
       {:oban_web, "~> 2.11"},
+      {:phoenix_live_dashboard, "~> 0.8"},
       {:igniter, "~> 0.5", only: [:dev]},
       # HTTP Client pour Brevo (plus moderne que HTTPoison)
       {:mint, "~> 1.7"},
