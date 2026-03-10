@@ -3,8 +3,6 @@ defmodule MyAuthSystem.Monitoring.RequestLogger do
   Telemetry handler for logging all GraphQL requests and responses.
   """
   require Logger
-  alias MyAuthSystem.Monitoring.RequestLog
-  alias MyAuthSystem.Repo
 
   def attach do
     :telemetry.attach(
@@ -45,11 +43,8 @@ defmodule MyAuthSystem.Monitoring.RequestLogger do
     }
 
     # Async insert to avoid blocking
-    Task.start(fn ->
-      %RequestLog{}
-      |> RequestLog.changeset(attrs)
-      |> Repo.insert()
-    end)
+    MyAuthSystem.Workers.RequestLogWorker.new(attrs)
+    |> Oban.insert()
 
     # Also log to console for immediate visibility
     log_level = if errors, do: :warning, else: :info

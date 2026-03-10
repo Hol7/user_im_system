@@ -187,16 +187,23 @@ defmodule MyAuthSystem.Accounts do
     # Evaluate DateTime BEFORE the query
     now = DateTime.utc_now()
 
-    from(u in User,
-      where: u.id == ^user_id,
-      update: [
-        set: [
-          status: :deletion_requested,
-          deleted_at: ^now
+    {count, _} =
+      from(u in User,
+        where: u.id == ^user_id,
+        update: [
+          set: [
+            status: :deletion_requested,
+            deleted_at: ^now
+          ]
         ]
-      ]
-    )
-    |> Repo.update_all([])
+      )
+      |> Repo.update_all([])
+
+    if count > 0 do
+      {:ok, count}
+    else
+      {:error, :not_found}
+    end
   end
 
   @doc """

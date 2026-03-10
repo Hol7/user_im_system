@@ -115,16 +115,6 @@ defmodule MyAuthSystemWeb.Router do
   #   plug MyAuthSystemWeb.GraphQL.Middleware.RequireRole, [:admin, :super_admin]
   # end
 
-  # Fallback for all unmatched routes
-  scope "/", MyAuthSystemWeb do
-    pipe_through :browser
-
-    get "/", PageController, :home
-
-    # Catch-all for any unmatched routes (handles both JSON and HTML via content negotiation)
-    match :*, "/*path", PageController, :not_found
-  end
-
   # Enable Swoosh mailbox preview in development
   if Application.compile_env(:my_auth_system, :dev_routes) do
     scope "/dev" do
@@ -132,5 +122,15 @@ defmodule MyAuthSystemWeb.Router do
 
       forward "/mailbox", Plug.Swoosh.MailboxPreview
     end
+  end
+
+  # Fallback for all unmatched routes (MUST be last)
+  scope "/", MyAuthSystemWeb do
+    pipe_through :browser
+
+    get "/", PageController, :home
+
+    # Catch-all for any unmatched routes (handles both JSON and HTML via content negotiation)
+    match :*, "/*path", PageController, :not_found
   end
 end

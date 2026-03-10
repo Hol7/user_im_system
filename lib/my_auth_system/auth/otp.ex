@@ -45,7 +45,10 @@ defmodule MyAuthSystem.Auth.Otp do
     generate_otp_with_code(user_id, purpose, code)
   end
 
-  defp generate_random_code do
+  @doc """
+  Generate a random 6-digit OTP code.
+  """
+  def generate_random_code do
     :crypto.strong_rand_bytes(6)
     |> :binary.bin_to_list()
     |> Enum.map(&rem(&1, 10))
