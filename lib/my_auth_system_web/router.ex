@@ -101,13 +101,18 @@ defmodule MyAuthSystemWeb.Router do
 
     # === LIVE DASHBOARD ===
     import Phoenix.LiveDashboard.Router
+    import Phoenix.LiveView.Router
 
     scope "/" do
-      pipe_through [:browser]
+      pipe_through :browser
 
       live_dashboard "/dashboard",
         metrics: MyAuthSystemWeb.Telemetry,
         ecto_repos: [MyAuthSystem.Repo]
+
+      # Custom logging views
+      live "/request-logs", MyAuthSystemWeb.RequestLogsLive
+      live "/console-logs", MyAuthSystemWeb.ConsoleLogsLive
     end
   end
 

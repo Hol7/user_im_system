@@ -23,7 +23,7 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
         email: user.email,
         name: input.first_name,
         otp: otp_plain_code
-      })
+      }, priority: 0)
       |> Oban.insert()
 
       {:ok, %{user: user, token: nil, message: "Verification email sent"}}
