@@ -2,16 +2,26 @@ defmodule MyAuthSystem.Workers.EmailWorker do
   @moduledoc """
   Worker Oban pour envoyer des emails via Brevo de manière asynchrone.
   """
-  use Oban.Worker, queue: :emails, max_attempts: 3
+  use Oban.Worker, queue: :emails, max_attempts: 3, priority: 0
 
   require Logger
 
   @impl true
   def perform(%Oban.Job{args: %{"type" => "otp", "email" => email, "name" => name, "otp" => otp}}) do
-    case MyAuthSystem.Notifications.Brevo.send_otp_email(email, name, otp) do
-      {:ok, _response} -> :ok
-      {:error, error} -> {:retry, error}
+    Logger.info("📧 Sending OTP email to #{email}")
+    start_time = System.monotonic_time(:millisecond)
+
+    result = case MyAuthSystem.Notifications.Brevo.send_otp_email(email, name, otp) do
+      {:ok, _response} ->
+        duration = System.monotonic_time(:millisecond) - start_time
+        Logger.info("✅ OTP email sent to #{email} in #{duration}ms")
+        :ok
+      {:error, error} ->
+        Logger.error("❌ Failed to send OTP email to #{email}: #{inspect(error)}")
+        {:retry, error}
     end
+
+    result
   end
 
   def perform(%Oban.Job{

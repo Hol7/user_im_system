@@ -15,6 +15,7 @@ defmodule MyAuthSystemWeb.GraphQL.Types.PublicAuthMutations do
 
     field :verify_otp, :auth_payload do
       arg(:code, non_null(:string))
+      arg(:email, :string)
       resolve(&MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver.verify_otp/3)
     end
 

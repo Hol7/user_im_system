@@ -156,16 +156,25 @@ defmodule MyAuthSystem.Auth do
   end
 
   defp verify_refresh_token(token_string) do
-    with %RefreshToken{} = token <-
-           Repo.get_by(RefreshToken, token_hash: Argon2.hash_pwd_salt(token_string)),
-         true <- !token.revoked || {:error, :revoked},
-         true <-
-           DateTime.compare(token.expires_at, DateTime.utc_now()) == :gt || {:error, :expired} do
-      {:ok, token}
-    else
-      false -> {:error, :invalid}
+    # Get all non-revoked, non-expired tokens and verify hash in memory
+    # This is necessary because Argon2 generates different hashes each time
+    query =
+      from rt in RefreshToken,
+        where: rt.revoked == false,
+        where: rt.expires_at > ^DateTime.utc_now(),
+        order_by: [desc: rt.inserted_at],
+        limit: 100
+
+    tokens = Repo.all(query)
+
+    matching_token =
+      Enum.find(tokens, fn token ->
+        Argon2.verify_pass(token_string, token.token_hash)
+      end)
+
+    case matching_token do
       nil -> {:error, :invalid}
-      error -> error
+      token -> {:ok, token}
     end
   end
 

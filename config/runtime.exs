@@ -78,8 +78,7 @@ if config_env() != :test do
          else
            "dev_secret_key_base_change_me_before_prod_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
          end),
-    check_origin: if(config_env() == :prod, do: ["//myauthsystem.com"], else: false),
-    force_ssl: [hsts: true] |> then(fn opts -> if config_env() == :prod, do: opts, else: [] end)
+    check_origin: if(config_env() == :prod, do: ["//myauthsystem.com"], else: false)
 
   # === UPLOAD PATH ===
   config :my_auth_system,

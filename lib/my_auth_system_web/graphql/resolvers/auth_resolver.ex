@@ -23,7 +23,7 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
         email: user.email,
         name: input.first_name,
         otp: otp_plain_code
-      })
+      }, priority: 0)
       |> Oban.insert()
 
       {:ok, %{user: user, token: nil, message: "Verification email sent"}}
@@ -76,31 +76,48 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
   end
 
   @doc """
-  Mutation: verifyOtp(code: String!)
-  Verifies OTP using only the 6-digit code from email.
-  Finds the most recent unused OTP that matches the code.
+  Mutation: verifyOtp(code: String!, email: String)
+  Verifies OTP using the 6-digit code.
+  If email provided, only checks that user's OTPs (scalable).
+  Otherwise falls back to checking recent OTPs (for backward compatibility).
   """
-  def verify_otp(_parent, %{code: code}, _resolution) do
+  def verify_otp(_parent, %{code: code} = args, _resolution) do
     import Ecto.Query
 
     try do
-      # Find all unused, non-expired OTPs
-      query =
-        from o in Otp,
-          where: o.used == false and o.expires_at > ^DateTime.utc_now(),
-          order_by: [desc: o.inserted_at],
-          preload: :user
+      # If email provided, query only that user's OTPs (O(1) - scalable)
+      matching_otp = case Map.get(args, :email) do
+        nil ->
+          # Fallback: check recent OTPs (limit to last 100 for safety)
+          query =
+            from o in Otp,
+              where: o.used == false and o.expires_at > ^DateTime.utc_now(),
+              order_by: [desc: o.inserted_at],
+              limit: 100,
+              preload: :user
 
-      # Get all matching OTPs and verify code against each
-      otps = Repo.all(query)
+          otps = Repo.all(query)
+          Enum.find(otps, fn otp -> Argon2.verify_pass(code, otp.code_hash) end)
 
-      matching_otp =
-        Enum.find(otps, fn otp ->
-          Argon2.verify_pass(code, otp.code_hash)
-        end)
+        email ->
+          # Scalable: query only this user's OTPs
+          query =
+            from o in Otp,
+              join: u in assoc(o, :user),
+              where: u.email == ^email,
+              where: o.used == false and o.expires_at > ^DateTime.utc_now(),
+              order_by: [desc: o.inserted_at],
+              preload: :user
+
+          otps = Repo.all(query)
+          Enum.find(otps, fn otp -> Argon2.verify_pass(code, otp.code_hash) end)
+      end
 
       case matching_otp do
         nil ->
+          # Record failed attempt
+          record_failed_attempt(args)
+
           {:error, "Invalid or expired OTP code"}
 
         otp ->
@@ -109,6 +126,9 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
             otp
             |> Ecto.Changeset.change(used: true)
             |> Repo.update()
+
+            # Clear failed attempts
+            clear_failed_attempts(otp.user_id)
 
             # Update user status to ACTIVE and set email_verified_at if this is email verification
             updated_user =
@@ -225,10 +245,23 @@ defmodule MyAuthSystemWeb.GraphQL.Resolvers.AuthResolver do
   # === PRIVATE HELPERS ===
 
   defp generate_otp_code do
-    :crypto.strong_rand_bytes(6)
-    |> :binary.bin_to_list()
-    |> Enum.map(&rem(&1, 10))
-    |> Enum.join()
+    # Delegate to Otp module to avoid duplication
+    Otp.generate_random_code()
+  end
+
+  defp record_failed_attempt(args) do
+    case Map.get(args, :email) do
+      nil -> :ok
+      email -> MyAuthSystemWeb.Plugs.OtpRateLimit.record_failed_attempt(email)
+    end
+  end
+
+  defp clear_failed_attempts(user_id) do
+    # Get user email to clear rate limit
+    case Repo.get(MyAuthSystem.Accounts.User, user_id) do
+      nil -> :ok
+      user -> MyAuthSystemWeb.Plugs.OtpRateLimit.clear_attempts(user.email)
+    end
   end
 
   defp format_errors(changeset) do
