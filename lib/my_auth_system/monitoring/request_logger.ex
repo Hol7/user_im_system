@@ -14,8 +14,12 @@ defmodule MyAuthSystem.Monitoring.RequestLogger do
   end
 
   def handle_event([:absinthe, :execute, :operation, :stop], measurements, metadata, _config) do
-    # Extract request details
-    operation_name = get_in(metadata, [:blueprint, :name])
+    # Extract request details - use direct field access for Absinthe.Blueprint
+    operation_name = case metadata[:blueprint] do
+      %{operations: [%{name: name} | _]} -> name
+      _ -> nil
+    end
+
     query = extract_query(metadata)
     variables = get_in(metadata, [:options, :variables]) || %{}
 
@@ -59,7 +63,13 @@ defmodule MyAuthSystem.Monitoring.RequestLogger do
   end
 
   defp extract_query(metadata) do
-    case get_in(metadata, [:blueprint, :input]) do
+    # Use direct field access for Absinthe.Blueprint
+    input = case metadata[:blueprint] do
+      %{input: input} when is_binary(input) -> input
+      _ -> nil
+    end
+
+    case input do
       nil -> get_in(metadata, [:options, :document]) || "N/A"
       input when is_binary(input) -> String.slice(input, 0, 5000)
       _ -> "N/A"
