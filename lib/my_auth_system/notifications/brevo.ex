@@ -100,7 +100,39 @@ defmodule MyAuthSystem.Notifications.Brevo do
   end
 
   @doc """
-  Envoie l'email de réinitialisation de mot de passe.
+  Envoie l'email de réinitialisation de mot de passe avec lien sécurisé.
+  Follows OWASP Forgot Password Cheat Sheet recommendations.
+  """
+  def send_password_reset_link_email(user_email, user_name, reset_link) do
+    html_content = """
+    <html>
+    <body style="font-family: Arial, sans-serif; padding: 20px;">
+      <h1>Password Reset Request</h1>
+      <p>Hi #{user_name},</p>
+      <p>We received a request to reset your password. Click the link below to reset it:</p>
+      <div style="margin: 30px 0;">
+        <a href="#{reset_link}" style="background-color: #4CAF50; color: white; padding: 14px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
+          Reset Password
+        </a>
+      </div>
+      <p>Or copy and paste this link into your browser:</p>
+      <p style="color: #666; word-break: break-all;">#{reset_link}</p>
+      <p><strong>This link will expire in 1 hour.</strong></p>
+      <p>If you didn't request this, please ignore this email and your password will remain unchanged.</p>
+      <p style="color: #999; font-size: 12px; margin-top: 40px;">
+        For security reasons, never share this link with anyone.
+      </p>
+    </body>
+    </html>
+    """
+
+    send_email(user_email, user_name, "Password Reset Request", html_content, %{
+      "X-Priority" => "1"
+    })
+  end
+
+  @doc """
+  Envoie l'email de réinitialisation de mot de passe (legacy OTP method).
   """
   def send_password_reset_email(user_email, user_name, otp_code) do
     html_content = """

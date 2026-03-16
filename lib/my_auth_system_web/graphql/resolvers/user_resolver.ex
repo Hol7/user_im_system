@@ -1,5 +1,17 @@
 defmodule MyAuthSystemWeb.GraphQL.Resolvers.UserResolver do
   alias MyAuthSystem.Accounts
+  alias MyAuthSystem.Auth
+
+  def logout(_parent, %{refresh_token: refresh_token}, %{context: %{current_user: user}}) when not is_nil(user) do
+    case Auth.logout(user.id, refresh_token) do
+      {:ok, message} -> {:ok, %{message: message}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def logout(_parent, _args, _resolution) do
+    {:error, "Unauthorized"}
+  end
 
   def get_me(_parent, _args, %{context: %{current_user: user}}) when not is_nil(user) do
     {:ok, user}

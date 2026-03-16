@@ -73,6 +73,8 @@ defmodule MyAuthSystem.MixProject do
       {:comeonin, "~> 5.5"},
       # Hashing mot de passe
       {:argon2_elixir, "~> 4.0"},
+      # Security scanner
+      {:sobelow, "~> 0.13", only: [:dev, :test], runtime: false},
       # Rate Limiting sans Redis
       # {:plug_rate_limit, "~> 1.0"},
 

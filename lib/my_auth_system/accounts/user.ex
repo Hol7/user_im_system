@@ -10,7 +10,7 @@ defmodule MyAuthSystem.Accounts.User do
     field :role, Ecto.Enum, values: [:user, :admin, :super_admin], default: :user
 
     field :status, Ecto.Enum,
-      values: [:active, :pending_verification, :suspended, :deletion_requested],
+      values: [:active, :pending_verification, :suspended, :deletion_requested, :archived],
       default: :pending_verification
 
     field :last_login_at, :utc_datetime
