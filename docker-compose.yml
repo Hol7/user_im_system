@@ -1,39 +1,74 @@
 services:
   db:
     image: postgres:15-alpine
+    container_name: myauth_db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: my_auth_system_prod
+      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 5
+      start_period: 10s
+    networks:
+      - myauth_network
+    restart: unless-stopped
 
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: myauth_app
     depends_on:
       db:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: "ecto://postgres:postgres@db/my_auth_system_prod"
-      PHX_HOST: "localhost"
-      PHX_SERVER: "true"
-      PORT: "4000"
-      SECRET_KEY_BASE: "your-secret-key-base-min-64-chars-change-in-production-abcdef123456"
-      GUARDIAN_SECRET_KEY: "your-guardian-secret-change-in-production"
-      BREVO_API_KEY: "${BREVO_API_KEY}"
-      BREVO_SENDER_NAME: "MyAuth System"
-      BREVO_SENDER_EMAIL: "noreply@myauthsystem.com"
+      # Override for Docker networking
+      DATABASE_URL: "ecto://postgres:postgres@db:5432/my_auth_system_prod"
       MIX_ENV: "prod"
+      PHX_SERVER: "true"
+      ECTO_IPV6: "false"
+      DATABASE_SSL: "false"
+    
     ports:
       - "4000:4000"
+    
+    networks:
+      - myauth_network
+    
     restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 4000 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    
+    # Run migrations on startup
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        while ! nc -z db 5432; do sleep 1; done &&
+        echo 'Running migrations...' &&
+        bin/my_auth_system eval 'MyAuthSystem.Release.migrate()' &&
+        echo 'Starting application...' &&
+        bin/my_auth_system start
+      "
+
+networks:
+  myauth_network:
+    driver: bridge
 
 volumes:
   postgres_data:
+    driver: local

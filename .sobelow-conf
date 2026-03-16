@@ -1,0 +1,12 @@
+[
+  verbose: true,
+  private: false,
+  skip: false,
+  router: "lib/my_auth_system_web/router.ex",
+  exit: "low",
+  format: "txt",
+  out: "",
+  threshold: "low",
+  ignore: [],
+  ignore_files: []
+]

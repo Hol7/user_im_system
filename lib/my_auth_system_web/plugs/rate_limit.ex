@@ -36,6 +36,7 @@ defmodule MyAuthSystemWeb.Plugs.RateLimit do
 
       {:error, _count} ->
         conn
+        |> put_resp_content_type("application/json")
         |> put_resp_header("retry-after", "#{div(window_ms, 1000)}")
         |> send_resp(429, Jason.encode!(%{error: "Too many requests. Try again later."}))
         |> halt()

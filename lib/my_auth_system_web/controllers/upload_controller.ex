@@ -109,14 +109,39 @@ defmodule MyAuthSystemWeb.UploadController do
   end
 
   defp save_file(upload) do
-    filename = "#{Ecto.UUID.generate()}_#{Path.basename(upload.filename)}"
+    # Sanitize filename to prevent directory traversal
+    sanitized_basename =
+      upload.filename
+      |> Path.basename()
+      |> String.replace(~r/[^a-zA-Z0-9._-]/, "_")
+
+    filename = "#{Ecto.UUID.generate()}_#{sanitized_basename}"
     filepath = Path.join(@upload_path, filename)
 
-    File.mkdir_p!(@upload_path)
+    # Validate that the resolved path is still within upload directory
+    case validate_upload_path(filepath) do
+      :ok ->
+        File.mkdir_p!(@upload_path)
 
-    case File.write(filepath, upload.content) do
-      :ok -> {:ok, filename}
-      _ -> {:error, :save_failed}
+        case File.write(filepath, upload.content) do
+          :ok -> {:ok, filename}
+          _ -> {:error, :save_failed}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp validate_upload_path(filepath) do
+    # Ensure the resolved path is within the upload directory
+    resolved_path = Path.expand(filepath)
+    upload_dir = Path.expand(@upload_path)
+
+    if String.starts_with?(resolved_path, upload_dir) do
+      :ok
+    else
+      {:error, :invalid_path}
     end
   end
 
