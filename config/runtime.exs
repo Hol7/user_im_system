@@ -18,7 +18,7 @@ if config_env() != :test do
     database: System.get_env("DB_NAME", "my_auth_system_dev"),
     hostname: System.get_env("DB_HOST", "localhost"),
     port: String.to_integer(System.get_env("DB_PORT", "5432")),
-    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
+    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "20")),
     ssl: db_ssl?,
     socket_options: db_socket_options
 

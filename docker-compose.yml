@@ -33,11 +33,14 @@ services:
       - .env
     environment:
       # Override for Docker networking
-      DATABASE_URL: "ecto://postgres:postgres@db:5432/my_auth_system_prod"
-      MIX_ENV: "prod"
+      DATABASE_URL: postgres://postgres:postgres@db:5432/my_auth_system_dev
+      SECRET_KEY_BASE: dev_secret_key_base_change_me_before_prod
+      GUARDIAN_SECRET_KEY: dev_guardian_secret_key_change_me_before_prod
+      PHX_HOST: localhost
       PHX_SERVER: "true"
       ECTO_IPV6: "false"
       DATABASE_SSL: "false"
+      DB_POOL_SIZE: "20"
     
     ports:
       - "4000:4000"

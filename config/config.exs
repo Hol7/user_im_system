@@ -50,10 +50,10 @@ config :my_auth_system, Oban,
      ]}
   ],
   queues: [
-    default: 10,
-    emails: 20,
-    audits: 5,
-    uploads: 3
+    default: 20,
+    emails: 30,
+    audits: 10,
+    uploads: 10
   ]
 
 if config_env() != :prod do
