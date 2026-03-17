@@ -797,24 +797,7 @@ config :my_auth_system, MyAuthSystemWeb.Endpoint,
   http: [port: 4000],
   url: [host: System.get_env("PHX_HOST")]
 
-# Clustering
-config :libcluster,
-  topologies: [
-    k8s: [
-      strategy: Cluster.Strategy.Kubernetes.DNS,
-      config: [service: "my-auth-system-headless"]
-    ]
-  ]
-```
 
-### Tier 3: Auto-Scaling (50K-100K+ Users)
-
-**Infrastructure:**
-1. Kubernetes with horizontal pod autoscaling
-2. Managed PostgreSQL (AWS RDS, Google Cloud SQL)
-3. Redis cluster for distributed cache
-4. Separate Oban worker nodes
-5. Full observability stack (Prometheus, Grafana)
 
 **Database Optimizations:**
 1. Connection pooling per node (20 connections × N nodes)
