@@ -8,9 +8,6 @@ end
 
 # Only load runtime config if we're not in test mode (tests have their own setup)
 if config_env() != :test do
-  db_ssl? = System.get_env("DATABASE_SSL", "false") in ["true", "1"]
-  db_socket_options = if System.get_env("ECTO_IPV6") in ["true", "1"], do: [:inet6], else: []
-
   # === DATABASE ===
   config :my_auth_system, MyAuthSystem.Repo,
     username: System.get_env("DB_USERNAME") || System.get_env("USER") || "postgres",
@@ -18,9 +15,14 @@ if config_env() != :test do
     database: System.get_env("DB_NAME", "my_auth_system_dev"),
     hostname: System.get_env("DB_HOST", "localhost"),
     port: String.to_integer(System.get_env("DB_PORT", "5432")),
-    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "20")),
-    ssl: db_ssl?,
-    socket_options: db_socket_options
+    pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
+    ssl: System.get_env("DATABASE_SSL", "false") in ["true", "1"],
+    ssl_opts: [
+      verify: :verify_peer,
+      cacertfile: System.get_env("DATABASE_CA_CERT"),
+      server_name_indication: to_charlist(System.get_env("DB_HOST", "localhost"))
+    ],
+    socket_options: [:inet6]
 
   # === GUARDIAN (JWT) ===
   guardian_secret_key =
@@ -63,7 +65,6 @@ if config_env() != :test do
 
   # === ENDPOINT (Runtime overrides) ===
   config :my_auth_system, MyAuthSystemWeb.Endpoint,
-    server: System.get_env("PHX_SERVER") in ["true", "1"],
     http: [
       port: String.to_integer(System.get_env("PORT") || "4000")
     ],
@@ -89,23 +90,18 @@ end
 
 # === PRODUCTION-SPECIFIC CONFIG ===
 if config_env() == :prod do
-  db_ssl? = System.get_env("DATABASE_SSL", "false") in ["true", "1"]
-  db_socket_options = if System.get_env("ECTO_IPV6") in ["true", "1"], do: [:inet6], else: []
-  use_static_manifest? = System.get_env("USE_STATIC_MANIFEST", "false") in ["true", "1"]
-  cache_manifest = if use_static_manifest?, do: "priv/static/cache_manifest.json", else: nil
-
   # Database URL override (for platforms like Fly.io, Render, etc.)
   if url = System.get_env("DATABASE_URL") do
     config :my_auth_system, MyAuthSystem.Repo,
       url: url,
-      ssl: db_ssl?,
-      socket_options: db_socket_options
+      ssl: true,
+      ssl_opts: [verify: :verify_peer]
   end
 
   # Force HTTPS and proper host in production
   config :my_auth_system, MyAuthSystemWeb.Endpoint,
-    url: [host: System.get_env("PHX_HOST", "localhost"), port: 4000],
-    cache_static_manifest: cache_manifest
+    url: [host: System.get_env("APP_HOST", "myauthsystem.com"), port: 443],
+    cache_static_manifest: "priv/static/cache_manifest.json"
 end
 
 # # ## Using releases

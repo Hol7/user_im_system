@@ -7,7 +7,6 @@ defmodule MyAuthSystemWeb.Router do
     plug :fetch_flash
     plug :protect_from_forgery
     plug :put_secure_browser_headers
-    plug MyAuthSystemWeb.Plugs.SecurityHeaders
   end
 
   pipeline :api do
@@ -25,9 +24,6 @@ defmodule MyAuthSystemWeb.Router do
   pipeline :graphql_playground do
     plug :accepts, ["html", "json"]
     plug :fetch_session
-    plug :protect_from_forgery
-    plug :put_secure_browser_headers
-    plug MyAuthSystemWeb.Plugs.SecurityHeaders
     plug MyAuthSystemWeb.Plugs.GraphQLAuth
   end
 
@@ -79,17 +75,17 @@ defmodule MyAuthSystemWeb.Router do
   #   end
   # end
 
-  # === GRAPHIQL PLAYGROUND ===
-  scope "/api" do
-    pipe_through :graphql_playground
-
-    forward "/graphiql", Absinthe.Plug.GraphiQL,
-      schema: MyAuthSystemWeb.GraphQL.Schema,
-      interface: :playground,
-      default_url: "/api/graphql"
-  end
-
   if Mix.env() in [:dev, :test] do
+    # === GRAPHIQL PLAYGROUND ===
+    scope "/api" do
+      pipe_through :graphql_playground
+
+      forward "/graphiql", Absinthe.Plug.GraphiQL,
+        schema: MyAuthSystemWeb.GraphQL.Schema,
+        interface: :playground,
+        default_url: "/api/graphql"
+    end
+
     # === OBAN DASHBOARD ===
     scope "/" do
       pipe_through [:browser]

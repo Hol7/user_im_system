@@ -2,6 +2,11 @@ defmodule MyAuthSystemWeb.GraphQL.Types.UserMutations do
   use Absinthe.Schema.Notation
 
   object :user_mutations do
+    field :logout, :message_payload do
+      arg(:refresh_token, non_null(:string))
+      resolve(&MyAuthSystemWeb.GraphQL.Resolvers.UserResolver.logout/3)
+    end
+
     field :update_profile, :profile_payload do
       arg(:input, non_null(:profile_input))
       resolve(&MyAuthSystemWeb.GraphQL.Resolvers.UserResolver.update_profile/3)

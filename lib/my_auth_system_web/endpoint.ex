@@ -23,7 +23,14 @@ defmodule MyAuthSystemWeb.Endpoint do
 
   # API endpoint
   plug Corsica,
-    origins: ["*"],
+    origins: [
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "http://localhost:4000",
+      "http://127.0.0.1:4000",
+      ~r/^https?:\/\/localhost:\d+$/,
+      ~r/^https?:\/\/127\.0\.0\.1:\d+$/
+    ],
     allow_credentials: true,
     allow_headers: :all,
     allow_methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]

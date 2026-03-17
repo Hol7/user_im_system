@@ -50,4 +50,18 @@ defmodule MyAuthSystem.Workers.EmailWorker do
         {:retry, error}
     end
   end
+
+  def perform(%Oban.Job{
+        args: %{"type" => "password_reset_link", "email" => email, "name" => name, "reset_link" => reset_link}
+      }) do
+    case MyAuthSystem.Notifications.Brevo.send_password_reset_link_email(email, name, reset_link) do
+      {:ok, _response} ->
+        Logger.info("Password reset link sent to #{email}")
+        :ok
+
+      {:error, error} ->
+        Logger.error("Failed to send password reset link: #{inspect(error)}")
+        {:retry, error}
+    end
+  end
 end

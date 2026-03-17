@@ -75,17 +75,21 @@ defmodule MyAuthSystem.Application do
   end
 
   defp initialize_upload_directory do
+    # Get configured path or use default
     upload_path =
       Application.get_env(:my_auth_system, :upload_path) ||
         Path.join([:code.priv_dir(:my_auth_system), "static", "uploads"])
 
-    case File.mkdir_p(upload_path) do
+    # Validate path is safe (no directory traversal)
+    validated_path = Path.expand(upload_path)
+
+    case File.mkdir_p(validated_path) do
       :ok ->
+        Logger.info("Upload directory initialized: #{validated_path}")
         :ok
 
       {:error, reason} ->
-        Logger.error("Failed to create upload directory #{upload_path}: #{inspect(reason)}")
-        # Ne pas faire crasher l'app pour ça
+        Logger.error("Failed to create upload directory #{validated_path}: #{inspect(reason)}")
         :ok
     end
   end

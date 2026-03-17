@@ -5,24 +5,43 @@ defmodule MyAuthSystem.Auth do
 
   alias MyAuthSystem.Repo
   alias MyAuthSystem.Accounts.User
-  alias MyAuthSystem.Auth.{Otp, GuardianToken, RefreshToken}
+  alias MyAuthSystem.Auth.{Otp, GuardianToken, RefreshToken, PasswordResetToken}
   alias MyAuthSystem.Workers.EmailWorker
   import Ecto.Query
 
   @doc """
   Authenticate user with email and password.
+  Includes login rate limiting per OWASP recommendations.
   """
   def authenticate(email, password) do
-    with %User{} = user <- Repo.get_by(User, email: email),
+    # Check rate limit first
+    with :ok <- MyAuthSystemWeb.Plugs.LoginRateLimit.check_login_attempt(email),
+         %User{} = user <- Repo.get_by(User, email: email),
+         :ok <- check_user_status(user),
          true <-
            Argon2.verify_pass(password, user.password_hash) || {:error, :invalid_credentials} do
+      # Clear failed attempts on successful login
+      MyAuthSystemWeb.Plugs.LoginRateLimit.clear_login_attempts(email)
       {:ok, user}
     else
-      false -> {:error, :invalid_credentials}
-      nil -> {:error, :invalid_credentials}
-      error -> error
+      false ->
+        MyAuthSystemWeb.Plugs.LoginRateLimit.record_failed_login(email)
+        {:error, :invalid_credentials}
+      nil ->
+        MyAuthSystemWeb.Plugs.LoginRateLimit.record_failed_login(email)
+        {:error, :invalid_credentials}
+      {:error, reason} when is_binary(reason) ->
+        {:error, reason}
+      {:error, reason} ->
+        {:error, reason}
     end
   end
+
+  defp check_user_status(%User{status: :archived}), do: {:error, "Account archived. Please contact kp-support for assistance."}
+  defp check_user_status(%User{status: :suspended}), do: {:error, "Account suspended. Please contact support."}
+  defp check_user_status(%User{status: :deletion_requested}), do: {:error, "Account deletion in progress."}
+  defp check_user_status(%User{status: :active}), do: :ok
+  defp check_user_status(%User{status: :pending_verification}), do: :ok
 
   @doc """
   Generate OTP for user.
@@ -62,7 +81,26 @@ defmodule MyAuthSystem.Auth do
   end
 
   @doc """
-  Request password reset - generates OTP and sends email.
+  Request password reset with secure token link (OWASP recommended).
+  Generates cryptographically secure token and sends email with reset link.
+  """
+  def request_password_reset_link(email) do
+    with {:ok, user} <- Repo.get_by(User, email: email) |> validate_user_for_reset(),
+         {plain_token, token_struct} <- PasswordResetToken.create_for_user(user.id),
+         {:ok, _saved_token} <- Repo.insert(token_struct),
+         :ok <- send_password_reset_link_email(user, plain_token) do
+      {:ok, %{message: "If an account exists for #{email}, you will receive a password reset link shortly."}}
+    else
+      {:error, :user_not_found} ->
+        {:ok, %{message: "If an account exists for #{email}, you will receive a password reset link shortly."}}
+      {:error, :account_inactive} ->
+        {:ok, %{message: "If an account exists for #{email}, you will receive a password reset link shortly."}}
+      error -> error
+    end
+  end
+
+  @doc """
+  Request password reset - generates OTP and sends email (legacy method).
   """
   def request_password_reset(email, otp_plain_code) do
     with {:ok, user} <- Repo.get_by(User, email: email) |> validate_user_for_reset(),
@@ -82,6 +120,31 @@ defmodule MyAuthSystem.Auth do
 
       error ->
         error
+    end
+  end
+
+  @doc """
+  Logout user by revoking refresh token.
+  Follows RFC 7009 - OAuth 2.0 Token Revocation standard.
+  """
+  def logout(user_id, refresh_token_string) do
+    with {:ok, refresh_record} <- verify_refresh_token(refresh_token_string),
+         true <- refresh_record.user_id == user_id || {:error, "Token does not belong to user"},
+         :ok <- revoke_refresh_token(refresh_record.id) do
+
+      MyAuthSystem.Audit.Log.log_async(
+        user_id,
+        "user_logout",
+        %{token_id: refresh_record.id},
+        nil
+      )
+
+      {:ok, "Successfully logged out"}
+    else
+      {:error, :invalid} -> {:error, "Invalid refresh token"}
+      {:error, :revoked} -> {:error, "Token already revoked"}
+      {:error, :expired} -> {:error, "Token expired"}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -185,6 +248,28 @@ defmodule MyAuthSystem.Auth do
 
   defp revoke_all_refresh_tokens(user_id) do
     Repo.update_all(from(rt in RefreshToken, where: rt.user_id == ^user_id), set: [revoked: true])
+    :ok
+  end
+
+  defp send_password_reset_link_email(user, reset_token) do
+    user = Repo.preload(user, :profile)
+
+    name = case user.profile do
+      %{first_name: first_name} when is_binary(first_name) and first_name != "" -> first_name
+      _ -> "User"
+    end
+
+    app_url = System.get_env("APP_URL", "http://localhost:4000")
+    reset_link = "#{app_url}/reset-password?token=#{reset_token}"
+
+    EmailWorker.new(%{
+      type: "password_reset_link",
+      email: user.email,
+      name: name,
+      reset_link: reset_link
+    }, priority: 0)
+    |> Oban.insert()
+
     :ok
   end
 

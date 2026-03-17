@@ -1,28 +1,45 @@
-# Simple Dockerfile for MyAuthSystem
-FROM elixir:1.17.2-alpine
+# Minimal Phoenix release Dockerfile
+FROM elixir:1.17.2 AS builder
 
-# Install runtime dependencies
-RUN apk add --no-cache postgresql-client bash openssl git build-base
-
-# Install Hex and Rebar
-RUN mix local.hex --force && \
-    mix local.rebar --force
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends build-essential git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy everything
-COPY . .
+RUN mix local.hex --force && \
+    mix local.rebar --force
 
-# Install dependencies and compile
 ENV MIX_ENV=prod
-RUN mix deps.get --only prod && \
+
+COPY mix.exs mix.lock ./
+COPY config config
+
+RUN mix deps.get --only $MIX_ENV && \
     mix deps.compile
 
-# Compile application
-RUN mix compile
+COPY lib lib
+COPY priv priv
 
-# Build release
+RUN mix compile
 RUN mix release
 
-# Run the release
-CMD ["/app/_build/prod/rel/my_auth_system/bin/my_auth_system", "start"]
+FROM debian:bookworm-slim AS runner
+
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends libstdc++6 openssl libncurses6 ca-certificates curl netcat-openbsd && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=builder /app/_build/prod/rel/my_auth_system ./
+
+RUN chown -R nobody:nogroup /app
+USER nobody
+
+ENV MIX_ENV=prod
+EXPOSE 4000
+
+CMD ["/app/bin/my_auth_system", "start"]
